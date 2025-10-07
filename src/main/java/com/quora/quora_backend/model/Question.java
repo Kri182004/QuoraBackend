@@ -1,21 +1,45 @@
 package com.quora.quora_backend.model;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
-
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
-@Document(collection="question")
+@NoArgsConstructor
+@AllArgsConstructor
+@Document(collection="question")//this is used to specify the collection name
 public class Question {
     @Id
     private String id;
-    private String title;
-    private String questionBody;
     private String userId;
     private String username;
-    private List<Answer>answers=new ArrayList<>();//this line tells our question to conatin a list of answers objects.when we save a question to the data base , all of its answers will be saved along with it allin one in "documents"
+
+    @NotBlank(message="Title is required")
+    @Size(min=10,max=100,message="Title must be between 2 and 100 characters")//since we dont have afixed schema thats why we are having a loy of validations
+    private String title;
+
+    @NotBlank(message = "Question body is required")
+    @Size(min = 10, max = 1000, message = "Question body must be between 10 and 1000 characters")
+    private String questionBody;
+
+    @CreatedDate
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
+
+    private List<Answer> answers = new ArrayList<>(); 
+    //By adding = new ArrayList<>() to the declaration, 
+    //you guarantee that the answers list is never null.
+
 }
