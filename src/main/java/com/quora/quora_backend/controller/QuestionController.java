@@ -41,6 +41,7 @@ public class QuestionController {
         return question.map(value -> new ResponseEntity<>(questionService.convertToResponseDto(value), HttpStatus.OK))
                 .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
+
     @PostMapping("/{questionId}/answers")
     public ResponseEntity<Question> addAnswerToQuestion(@PathVariable String questionId, @Valid @RequestBody AnswerRequestDto answerRequestDto) {
         Question updatedQuestion = questionService.addAnswer(questionId, answerRequestDto);
@@ -60,5 +61,4 @@ public class QuestionController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
-
 }
