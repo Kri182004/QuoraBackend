@@ -15,8 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.quora.quora_backend.dto.AnswerRequestDto;
 import com.quora.quora_backend.dto.QuestionRequestDto;
 import com.quora.quora_backend.dto.QuestionResponseDto;
+import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.service.QuestionService;
+import com.quora.quora_backend.service.AnswerService;
 
 import jakarta.validation.Valid;
 
@@ -24,9 +26,11 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/questions")
 public class QuestionController {
     private final QuestionService questionService;
+    private final AnswerService answerService;
 
-    public QuestionController(QuestionService questionService){
+    public QuestionController(QuestionService questionService, AnswerService answerService){
         this.questionService = questionService;
+        this.answerService = answerService;
     }
 
     @PostMapping
@@ -42,23 +46,23 @@ public class QuestionController {
                 .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
-    @PostMapping("/{questionId}/answers")
-    public ResponseEntity<Question> addAnswerToQuestion(@PathVariable String questionId, @Valid @RequestBody AnswerRequestDto answerRequestDto) {
-        Question updatedQuestion = questionService.addAnswer(questionId, answerRequestDto);
-        if (updatedQuestion != null) {
-            return new ResponseEntity<>(updatedQuestion, HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
-    }
-
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Question>> getAllQuestionsByUserId(@PathVariable String userId) {
-        List<Question> questions = questionService.getAllQuestionsByUserId(userId);
+    public ResponseEntity<List<QuestionResponseDto>> getAllQuestionsByUserId(@PathVariable String userId) {
+        List<QuestionResponseDto> questions = questionService.getAllQuestionsByUserId(userId);
         if (!questions.isEmpty()) {
             return new ResponseEntity<>(questions, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
+    
+    @PostMapping("/{questionId}/answers")
+public ResponseEntity<Answer> addAnswerToQuestion(
+    @PathVariable String questionId,
+    @Valid @RequestBody AnswerRequestDto answerRequestDto
+) {
+    answerRequestDto.setQuestionId(questionId); // <-- Add this line
+    Answer newAnswer = answerService.addAnswer(questionId, answerRequestDto);
+    return new ResponseEntity<>(newAnswer, HttpStatus.CREATED);
+}
 }

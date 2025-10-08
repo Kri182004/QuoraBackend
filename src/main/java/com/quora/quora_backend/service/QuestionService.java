@@ -2,13 +2,12 @@ package com.quora.quora_backend.service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
-import com.quora.quora_backend.dto.AnswerRequestDto;
 import com.quora.quora_backend.dto.QuestionRequestDto;
 import com.quora.quora_backend.dto.QuestionResponseDto;
-import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.repository.QuestionRepository;
 
@@ -42,28 +41,15 @@ public class QuestionService {
             question.getUpdatedAt()
         );
     }
-
-    public Optional<Question> getQuestionById(String id){
+    
+    public Optional<Question> getQuestionById(String id) {
         return questionRepository.findById(id);
-    } 
-
-    public List<Question> getAllQuestionsByUserId(String userId) {
-        return questionRepository.findByUserId(userId);
     }
 
-    public Question addAnswer(String questionId, AnswerRequestDto answerRequestDto) {
-        Optional<Question> optionalQuestion = questionRepository.findById(questionId);
-        if (optionalQuestion.isPresent()) {
-            Question question = optionalQuestion.get();
-            
-            Answer answer = new Answer();
-            answer.setContent(answerRequestDto.getContent());
-            answer.setUserId(answerRequestDto.getUserId());
-            answer.setUsername(answerRequestDto.getUsername());
-
-            question.getAnswers().add(answer);
-            return questionRepository.save(question);
-        }
-        return null;
+    public List<QuestionResponseDto> getAllQuestionsByUserId(String userId) {
+        List<Question> questions = questionRepository.findByUserId(userId);
+        return questions.stream()
+                .map(this::convertToResponseDto)
+                .collect(Collectors.toList());
     }
 }
