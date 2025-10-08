@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.quora.quora_backend.dto.AnswerRequestDto;
 import com.quora.quora_backend.dto.QuestionRequestDto;
@@ -52,6 +53,16 @@ public class QuestionController {
         if (!questions.isEmpty()) {
             return new ResponseEntity<>(questions, HttpStatus.OK);
         } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+    }
+    
+    @GetMapping("/search")
+    public ResponseEntity<List<QuestionResponseDto>> searchQuestions(@RequestParam("query")String query){
+        List<QuestionResponseDto>questions=questionService.searchQuestions(query);
+        if(!questions.isEmpty()){
+            return new ResponseEntity<>(questions,HttpStatus.OK);
+        }else{
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
