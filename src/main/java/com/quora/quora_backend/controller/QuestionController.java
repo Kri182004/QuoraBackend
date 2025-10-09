@@ -58,14 +58,15 @@ public class QuestionController {
     }
     
     @GetMapping("/search")
-    public ResponseEntity<List<QuestionResponseDto>> searchQuestions(@RequestParam("query")String query){
-        List<QuestionResponseDto>questions=questionService.searchQuestions(query);
-        if(!questions.isEmpty()){
-            return new ResponseEntity<>(questions,HttpStatus.OK);
-        }else{
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+public ResponseEntity<List<QuestionResponseDto>> searchQuestions(@RequestParam("query") String query) {
+    List<QuestionResponseDto> questions = questionService.searchQuestions(query);
+    if (!questions.isEmpty()) {
+        return new ResponseEntity<>(questions, HttpStatus.OK);
+    } else {
+        return new ResponseEntity<>(questions, HttpStatus.OK);
     }
+}
+
     
     @PostMapping("/{questionId}/answers")
 public ResponseEntity<Answer> addAnswerToQuestion(
