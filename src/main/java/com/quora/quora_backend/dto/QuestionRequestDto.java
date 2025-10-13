@@ -1,4 +1,4 @@
-// In QuestionRequestDto.java
+
 
 package com.quora.quora_backend.dto;
 
@@ -19,7 +19,8 @@ public class QuestionRequestDto {
     
     @NotBlank(message = "Question body is required")
     private String questionBody;
-    
-    private String userId;
-    private String username;
+    //hamne yaha par userId  aur username nahi rakha,
+    // kyunki user authentication ke time par hi mil jayega
+    //aur hum question ko usi user ke sath link kar denge
+
 }

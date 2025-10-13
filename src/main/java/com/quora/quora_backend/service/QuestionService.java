@@ -3,11 +3,14 @@ package com.quora.quora_backend.service;
 // CORRECT: Import the classes we created
 import com.quora.quora_backend.document.QuestionDocument;
 import com.quora.quora_backend.repository.QuestionRepository;
+import com.quora.quora_backend.repository.UserRepository;
 import com.quora.quora_backend.repository.elastic.QuestionElasticRepository;
 
 import com.quora.quora_backend.dto.QuestionRequestDto;
 import com.quora.quora_backend.dto.QuestionResponseDto;
 import com.quora.quora_backend.model.Question;
+import com.quora.quora_backend.model.User;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,18 +22,23 @@ public class QuestionService {
 
     private final QuestionRepository questionRepository;
     private final QuestionElasticRepository questionElasticRepository;
+    private final UserRepository userRepository;
 
-    public QuestionService(QuestionRepository questionRepository, QuestionElasticRepository questionElasticRepository) {
+    public QuestionService(QuestionRepository questionRepository, QuestionElasticRepository questionElasticRepository,UserRepository userRepository) {
         this.questionRepository = questionRepository;
         this.questionElasticRepository = questionElasticRepository;
+        this.userRepository = userRepository;
     }
+    public QuestionResponseDto saveQuestion(QuestionRequestDto questionRequestDto,String username) {//added the username parameter because we need to link the question to the user
+        //find the user in the db using the username from the token you got during authentication
+        User user=userRepository.findByUsername(username).orElseThrow(()->new RuntimeException("User not found: " + username));
+        //create the new Question object and set all the fields including userId and username
 
-    public QuestionResponseDto saveQuestion(QuestionRequestDto questionRequestDto) {
         Question question = new Question();
         question.setTitle(questionRequestDto.getTitle());
         question.setQuestionBody(questionRequestDto.getQuestionBody());
-        question.setUserId(questionRequestDto.getUserId());
-        question.setUsername(questionRequestDto.getUsername());
+        question.setUserId(user.getId());
+        question.setUsername(user.getUsername());
 
         // 1. Save to MongoDB (primary database)
         Question savedQuestion = questionRepository.save(question);
@@ -70,13 +78,13 @@ public class QuestionService {
                 .collect(Collectors.toList());
     }
 
-    // FIX: DELETED the old duplicate searchQuestions method. This is the only one.
+
     public List<QuestionResponseDto> searchQuestions(String query) {
         List<QuestionDocument> documents = questionElasticRepository.findByTitleContainingOrContentContaining(query, query);
 
         List<String> ids = documents.stream().map(QuestionDocument::getId).collect(Collectors.toList());
         
-        // FIX: Corrected the typo from 'question' to 'Question'
+        
         List<Question> questions = (List<Question>) questionRepository.findAllById(ids);
         
         return questions.stream()
