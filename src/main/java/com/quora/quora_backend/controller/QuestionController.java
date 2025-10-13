@@ -83,4 +83,9 @@ public ResponseEntity<Answer> addAnswerToQuestion(
     Answer newAnswer = answerService.addAnswer(questionId, answerRequestDto,username);
     return new ResponseEntity<>(newAnswer, HttpStatus.CREATED);
 }
+@GetMapping //a menthodd for getting all questions
+public ResponseEntity<List<QuestionResponseDto>> getAllQuestions() {
+    List<QuestionResponseDto> questions = questionService.getAllQuestions();
+    return new ResponseEntity<>(questions, HttpStatus.OK);
+}
 }

@@ -91,4 +91,13 @@ public class QuestionService {
                 .map(this::convertToResponseDto)
                 .collect(Collectors.toList());
     }
+    public List<QuestionResponseDto> getAllQuestions() {
+    // 1. Find all questions from the primary database (MongoDB)
+    List<Question> questions = questionRepository.findAll();
+
+    // 2. Convert each Question object into a QuestionResponseDto
+    return questions.stream()
+            .map(this::convertToResponseDto)
+            .collect(Collectors.toList());
+}
 }
