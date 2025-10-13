@@ -2,12 +2,15 @@ package com.quora.quora_backend.service;
 
 // CORRECT: Import the classes we created
 import com.quora.quora_backend.document.QuestionDocument;
+import com.quora.quora_backend.repository.AnswerRepository;
 import com.quora.quora_backend.repository.QuestionRepository;
 import com.quora.quora_backend.repository.UserRepository;
 import com.quora.quora_backend.repository.elastic.QuestionElasticRepository;
-
+import com.quora.quora_backend.dto.AnswerResponseDto;
+import com.quora.quora_backend.dto.QuestionDetailsDto;
 import com.quora.quora_backend.dto.QuestionRequestDto;
 import com.quora.quora_backend.dto.QuestionResponseDto;
+import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.model.User;
 
@@ -23,11 +26,54 @@ public class QuestionService {
     private final QuestionRepository questionRepository;
     private final QuestionElasticRepository questionElasticRepository;
     private final UserRepository userRepository;
+    private final AnswerRepository answerRepository;
 
-    public QuestionService(QuestionRepository questionRepository, QuestionElasticRepository questionElasticRepository,UserRepository userRepository) {
+    public QuestionService(QuestionRepository questionRepository, QuestionElasticRepository questionElasticRepository,UserRepository userRepository,AnswerRepository answerRepository) {
         this.questionRepository = questionRepository;
         this.questionElasticRepository = questionElasticRepository;
         this.userRepository = userRepository;
+        this.answerRepository = answerRepository;
+    }
+
+     public QuestionDetailsDto getQuestionWithAnswers(String questionId) {
+        // 1. Find the question by its ID
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new RuntimeException("Question not found with ID: " + questionId));
+
+        // 2. Find all answers for that question using our new repository method
+        List<Answer> answers = answerRepository.findByQuestionId(questionId);
+
+        // 3. Convert the list of Answer objects to a list of AnswerResponseDto objects
+        List<AnswerResponseDto> answerDtos = answers.stream()
+                .map(this::convertAnswerToDto) // We'll create this helper method
+                .collect(Collectors.toList());
+
+        // 4. Create the final DTO and combine all the data
+        QuestionDetailsDto questionDetailsDto = new QuestionDetailsDto();
+        questionDetailsDto.setId(question.getId());
+        questionDetailsDto.setTitle(question.getTitle());
+        questionDetailsDto.setQuestionBody(question.getQuestionBody());
+        questionDetailsDto.setUserId(question.getUserId());
+        questionDetailsDto.setUsername(question.getUsername());
+        questionDetailsDto.setCreatedAt(question.getCreatedAt());
+        questionDetailsDto.setUpdatedAt(question.getUpdatedAt());
+        questionDetailsDto.setAnswers(answerDtos); // Set the list of answers
+
+        return questionDetailsDto;
+    }
+
+    // --- ADD THIS NEW HELPER METHOD ---
+    private AnswerResponseDto convertAnswerToDto(Answer answer) {
+        AnswerResponseDto dto = new AnswerResponseDto();
+        dto.setId(answer.getId());
+        dto.setContent(answer.getContent());
+        dto.setQuestionId(answer.getQuestionId());
+        dto.setUserId(answer.getUserId());
+        dto.setUsername(answer.getUsername());
+        dto.setUpvotes(answer.getUpvotes());
+        dto.setCreatedAt(answer.getCreatedAt());
+        dto.setUpdatedAt(answer.getUpdatedAt());
+        return dto;
     }
     public QuestionResponseDto saveQuestion(QuestionRequestDto questionRequestDto,String username) {//added the username parameter because we need to link the question to the user
         //find the user in the db using the username from the token you got during authentication

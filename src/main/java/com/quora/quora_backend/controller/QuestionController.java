@@ -1,8 +1,6 @@
 package com.quora.quora_backend.controller;
 
 import java.util.List;
-import java.util.Optional;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -15,10 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.quora.quora_backend.dto.AnswerRequestDto;
+import com.quora.quora_backend.dto.QuestionDetailsDto;
 import com.quora.quora_backend.dto.QuestionRequestDto;
 import com.quora.quora_backend.dto.QuestionResponseDto;
 import com.quora.quora_backend.model.Answer;
-import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.service.QuestionService;
 import com.quora.quora_backend.service.AnswerService;
 
@@ -45,11 +43,15 @@ public class QuestionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<QuestionResponseDto> getQuestionById(@PathVariable String id) {
-        Optional<Question> question = questionService.getQuestionById(id);
-        return question.map(value -> new ResponseEntity<>(questionService.convertToResponseDto(value), HttpStatus.OK))
-                .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
+public ResponseEntity<QuestionDetailsDto> getQuestionById(@PathVariable String id) {
+    try {
+        QuestionDetailsDto questionDetails = questionService.getQuestionWithAnswers(id);
+        return new ResponseEntity<>(questionDetails, HttpStatus.OK);
+    } catch (RuntimeException e) {
+        // This catches the "Question not found" exception from the service
+        return new ResponseEntity<>(HttpStatus.NOT_FOUND);
     }
+}
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<QuestionResponseDto>> getAllQuestionsByUserId(@PathVariable String userId) {
