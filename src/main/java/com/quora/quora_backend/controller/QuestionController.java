@@ -75,10 +75,12 @@ public ResponseEntity<List<QuestionResponseDto>> searchQuestions(@RequestParam("
     @PostMapping("/{questionId}/answers")
 public ResponseEntity<Answer> addAnswerToQuestion(
     @PathVariable String questionId,
-    @Valid @RequestBody AnswerRequestDto answerRequestDto
+    @Valid @RequestBody AnswerRequestDto answerRequestDto,
+    Authentication authentication
 ) {
-    answerRequestDto.setQuestionId(questionId); // <-- Add this line
-    Answer newAnswer = answerService.addAnswer(questionId, answerRequestDto);
+// Get the username of the currently logged-in user
+    String username = authentication.getName();
+    Answer newAnswer = answerService.addAnswer(questionId, answerRequestDto,username);
     return new ResponseEntity<>(newAnswer, HttpStatus.CREATED);
 }
 }
