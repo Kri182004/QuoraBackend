@@ -48,4 +48,5 @@ public class Question {
   private LocalDateTime updatedAt;
 
   private List<Answer> answers = new ArrayList<>();
+private Integer voteCount = 0;//added to keep track of the net votes (upvotes - downvotes) for the question
 }

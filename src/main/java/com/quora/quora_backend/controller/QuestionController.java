@@ -16,8 +16,10 @@ import com.quora.quora_backend.dto.AnswerRequestDto;
 import com.quora.quora_backend.dto.QuestionDetailsDto;
 import com.quora.quora_backend.dto.QuestionRequestDto;
 import com.quora.quora_backend.dto.QuestionResponseDto;
+import com.quora.quora_backend.dto.VoteRequestDto;
 import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.service.QuestionService;
+import com.quora.quora_backend.service.VoteService;
 import com.quora.quora_backend.service.AnswerService;
 
 import jakarta.validation.Valid;
@@ -27,10 +29,12 @@ import jakarta.validation.Valid;
 public class QuestionController {
     private final QuestionService questionService;
     private final AnswerService answerService;
+    private final VoteService voteService;
 
-    public QuestionController(QuestionService questionService, AnswerService answerService){
+    public QuestionController(QuestionService questionService, AnswerService answerService,VoteService voteService){
         this.questionService = questionService;
         this.answerService = answerService;
+        this.voteService=voteService;
     }
 
     @PostMapping
@@ -90,4 +94,9 @@ public ResponseEntity<List<QuestionResponseDto>> getAllQuestions() {
     List<QuestionResponseDto> questions = questionService.getAllQuestions();
     return new ResponseEntity<>(questions, HttpStatus.OK);
 }
+@PostMapping("/{questionId}/vote")//endpoint to handle voting on a question
+    public ResponseEntity<Void> voteOnQuestion(@PathVariable String questionId, @RequestBody VoteRequestDto voteRequestDto) {
+        voteService.voteOnQuestion(questionId, voteRequestDto.getVoteType());
+        return ResponseEntity.ok().build();
+    }
 }
