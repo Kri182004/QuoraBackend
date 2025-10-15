@@ -1,6 +1,8 @@
 package com.quora.quora_backend.model;
 import lombok.Data;
 
+import java.util.List;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -12,5 +14,6 @@ public class User {
     private String username;
     private String email;
     private String password;
+    private List<String> roles;
 
 }
