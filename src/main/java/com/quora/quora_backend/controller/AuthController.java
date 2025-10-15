@@ -11,7 +11,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,14 +24,11 @@ public class AuthController {
     private final UserService userService;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
-    private final UserDetailsService userDetailsService;
 
-
-    public AuthController(UserService userService, JwtService jwtService, AuthenticationManager authenticationManager,UserDetailsService userDetailsService) {
+    public AuthController(UserService userService, JwtService jwtService, AuthenticationManager authenticationManager) {
         this.userService = userService;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
-        this.userDetailsService = userDetailsService;
     }
 
     @PostMapping("/register")
@@ -44,17 +40,16 @@ public class AuthController {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         }
     }
-
-    @PostMapping("/login")
+@PostMapping("/login")
 public String authenticateAndGetToken(@RequestBody AuthRequest authRequest) {
     Authentication authentication = authenticationManager.authenticate(
         new UsernamePasswordAuthenticationToken(authRequest.getUsername(), authRequest.getPassword())
     );
 
     if (authentication.isAuthenticated()) {
-        // Load the full UserDetails object
-        UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername());
-        // Pass the UserDetails object to the token generator
+        // After successful authentication, the 'principal' is the UserDetails object.
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        // Pass the full UserDetails object to generate the token.
         return jwtService.generateToken(userDetails);
     } else {
         throw new UsernameNotFoundException("Invalid user request!");
