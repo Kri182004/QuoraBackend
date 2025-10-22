@@ -109,8 +109,9 @@ public class CommentService {
                 .collect(Collectors.toList());
     }
     // --- This is your existing helper method, no changes ---
-    private CommentResponseDto mapToCommentResponseDto(Comment comment) {
-        return CommentResponseDto.builder()
+   private CommentResponseDto mapToCommentResponseDto(Comment comment) {
+        // 1. Map the main (parent) comment
+        CommentResponseDto dto = CommentResponseDto.builder()
                 .id(comment.getId())
                 .content(comment.getContent())
                 .createdAt(comment.getCreatedAt())
@@ -120,5 +121,17 @@ public class CommentService {
                 .questionId(comment.getQuestion() != null ? comment.getQuestion().getId() : null)
                 .parentCommentId(comment.getParentComment() != null ? comment.getParentComment().getId() : null)
                 .build();
+
+        // 2. Check if this comment has replies
+        if (comment.getReplies() != null && !comment.getReplies().isEmpty()) {
+            // 3. If it does, map each reply by calling this SAME method
+            List<CommentResponseDto> replyDtos = comment.getReplies().stream()
+                    .map(this::mapToCommentResponseDto) // <-- RECURSION HAPPENS HERE
+                    .collect(Collectors.toList());
+            dto.setReplies(replyDtos);
+        }
+
+        // 4. Return the complete DTO (now with replies, if any)
+        return dto;
     }
 }

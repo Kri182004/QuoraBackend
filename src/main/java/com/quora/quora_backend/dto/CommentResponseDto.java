@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.Instant;
+import java.util.List;
 
 @Data
 @Builder
@@ -23,4 +24,6 @@ public class CommentResponseDto {
     private String questionId;
     private String answerId;
     private String parentCommentId;
+
+    private List<CommentResponseDto> replies;
 }
