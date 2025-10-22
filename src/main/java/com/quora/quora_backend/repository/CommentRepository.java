@@ -4,9 +4,14 @@ import com.quora.quora_backend.model.Comment;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List; // <-- ADD THIS IMPORT
+
 @Repository
 public interface CommentRepository extends MongoRepository<Comment, String> {
-    // We can add custom finder methods here later, like
-    // List<Comment> findByAnswer(Answer answer);
-    // List<Comment> findByQuestion(Question question);
+
+    // --- ADD (OR FIX) THESE TWO METHODS ---
+
+    List<Comment> findByAnswerId(String answerId);
+    
+    List<Comment> findByQuestionId(String questionId);
 }
