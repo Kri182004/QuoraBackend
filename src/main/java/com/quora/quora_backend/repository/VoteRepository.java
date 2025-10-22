@@ -5,6 +5,7 @@ import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
+import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.model.User;
 import com.quora.quora_backend.model.Vote;
@@ -15,7 +16,7 @@ public interface VoteRepository extends MongoRepository<Vote,String> {//we have 
 Optional<Vote> findByUserAndQuestion(User user, Question question);
 //this method will help us to find if a user has already voted on a question,
 //so that we can prevent multiple votes from the same user on the same question
-Optional<Vote> findByUserAndAnswer(User user, Question question);
+Optional<Vote> findByUserAndAnswer(User user, Answer answer);
 //this method will help us to find if a user has already voted on an answer,
 //so that we can prevent multiple votes from the same user on the same answer
 }

@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -56,6 +58,17 @@ public class AnswerService {
         return mapToAnswerResponseDto(savedAnswer);
     }
 
+
+    public List<AnswerResponseDto> getAnswersForQuestion(String questionId) {
+        
+        // 1. Use the repository to get all raw Answer models
+        List<Answer> answers = answerRepository.findByQuestionId(questionId);
+
+        // 2. Convert the list of Answer models into a list of AnswerResponseDto
+        return answers.stream()
+                .map(this::mapToAnswerResponseDto)
+                .collect(Collectors.toList());
+    }
     // Helper method to convert Model to DTO (using your model's fields)
     private AnswerResponseDto mapToAnswerResponseDto(Answer answer) {
         return AnswerResponseDto.builder()
