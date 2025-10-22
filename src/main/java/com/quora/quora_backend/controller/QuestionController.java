@@ -76,19 +76,6 @@ public ResponseEntity<List<QuestionResponseDto>> searchQuestions(@RequestParam("
         return new ResponseEntity<>(questions, HttpStatus.OK);
     }
 }
-
-    
-    @PostMapping("/{questionId}/answers")
-public ResponseEntity<Answer> addAnswerToQuestion(
-    @PathVariable String questionId,
-    @Valid @RequestBody AnswerRequestDto answerRequestDto,
-    Authentication authentication
-) {
-// Get the username of the currently logged-in user
-    String username = authentication.getName();
-    Answer newAnswer = answerService.addAnswer(questionId, answerRequestDto,username);
-    return new ResponseEntity<>(newAnswer, HttpStatus.CREATED);
-}
 @GetMapping //a menthodd for getting all questions
 public ResponseEntity<List<QuestionResponseDto>> getAllQuestions() {
     List<QuestionResponseDto> questions = questionService.getAllQuestions();
