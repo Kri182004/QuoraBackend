@@ -190,4 +190,14 @@ public class QuestionService {
         .map(this::convertToResponseDto)
         .collect(Collectors.toList());
     }
+    @Transactional(readOnly = true) // Use readOnly for GET requests
+    public List<QuestionResponseDto> getFeed() {
+        // 1. Fetch all questions, sorted by newest first
+        List<Question> questions = questionRepository.findAllByOrderByCreatedAtDesc();
+
+        // 2. Convert to DTOs
+        return questions.stream()
+                .map(this::convertToResponseDto) // Reuse your existing converter
+                .collect(Collectors.toList());
+    }
 }

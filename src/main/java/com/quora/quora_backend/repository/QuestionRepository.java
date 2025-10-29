@@ -11,5 +11,5 @@ import com.quora.quora_backend.model.Topic;
 public interface QuestionRepository  extends MongoRepository<Question, String> {
  List<Question> findByUserId(String userId);//method to find questions by user ID
  List<Question> findByTopicsContains(Topic topic);//method to find questions by topic
-
+ List<Question> findAllByOrderByCreatedAtDesc();//// Finds all questions, sorts them by createdAt descending
 }
