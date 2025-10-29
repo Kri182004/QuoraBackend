@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.quora.quora_backend.dto.UserProfileDto;
 import com.quora.quora_backend.dto.UserRegistrationDto;
 import com.quora.quora_backend.dto.UserResponseDto;
 import com.quora.quora_backend.model.User;
@@ -44,5 +45,10 @@ public class UserController {
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
+    }
+    @GetMapping("/{userId}/profile")
+    public ResponseEntity<UserProfileDto> getUserProfile(@PathVariable String userId) {
+        UserProfileDto userProfile = userService.getUserProfile(userId);
+        return ResponseEntity.ok(userProfile);
     }
 }

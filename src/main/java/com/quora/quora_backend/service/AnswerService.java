@@ -70,7 +70,7 @@ public class AnswerService {
                 .collect(Collectors.toList());
     }
     // Helper method to convert Model to DTO (using your model's fields)
-    private AnswerResponseDto mapToAnswerResponseDto(Answer answer) {
+    public AnswerResponseDto mapToAnswerResponseDto(Answer answer) {
         return AnswerResponseDto.builder()
                 .id(answer.getId())
                 .content(answer.getContent())
