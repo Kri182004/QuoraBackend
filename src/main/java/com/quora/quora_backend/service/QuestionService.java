@@ -1,22 +1,24 @@
 package com.quora.quora_backend.service;
 
-// CORRECT: Import the classes we created
 import com.quora.quora_backend.document.QuestionDocument;
 import com.quora.quora_backend.repository.AnswerRepository;
 import com.quora.quora_backend.repository.QuestionRepository;
+import com.quora.quora_backend.repository.TopicRepository;
 import com.quora.quora_backend.repository.UserRepository;
 import com.quora.quora_backend.repository.elastic.QuestionElasticRepository;
-import com.quora.quora_backend.dto.AnswerResponseDto;
-import com.quora.quora_backend.dto.QuestionDetailsDto;
-import com.quora.quora_backend.dto.QuestionRequestDto;
-import com.quora.quora_backend.dto.QuestionResponseDto;
+import com.quora.quora_backend.dto.*;
 import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Question;
+import com.quora.quora_backend.model.Topic;
 import com.quora.quora_backend.model.User;
 
+import org.springframework.data.elasticsearch.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -27,28 +29,101 @@ public class QuestionService {
     private final QuestionElasticRepository questionElasticRepository;
     private final UserRepository userRepository;
     private final AnswerRepository answerRepository;
+    private final TopicRepository topicRepository;
 
-    public QuestionService(QuestionRepository questionRepository, QuestionElasticRepository questionElasticRepository,UserRepository userRepository,AnswerRepository answerRepository) {
+    public QuestionService(QuestionRepository questionRepository,
+                           QuestionElasticRepository questionElasticRepository,
+                           UserRepository userRepository,
+                           AnswerRepository answerRepository,
+                           TopicRepository topicRepository) {
         this.questionRepository = questionRepository;
         this.questionElasticRepository = questionElasticRepository;
         this.userRepository = userRepository;
         this.answerRepository = answerRepository;
+        this.topicRepository = topicRepository;
     }
 
-     public QuestionDetailsDto getQuestionWithAnswers(String questionId) {
-        // 1. Find the question by its ID
+    @Transactional
+    private List<Topic> getOrCreateTopics(List<String> topicNames) {
+        if (topicNames == null || topicNames.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Topic> topics = new ArrayList<>();
+        for (String name : topicNames) {
+            Topic topic = topicRepository.findByName(name)
+                    .orElseGet(() -> {
+                        Topic newTopic = Topic.builder().name(name).build();
+                        return topicRepository.save(newTopic);
+                    });
+            topics.add(topic);
+        }
+        return topics;
+    }
+
+    @Transactional
+    public QuestionResponseDto saveQuestion(QuestionRequestDto questionRequestDto, String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+
+        List<Topic> topics = getOrCreateTopics(questionRequestDto.getTopicNames());
+
+        Question question = new Question();
+        question.setTitle(questionRequestDto.getTitle());
+        question.setQuestionBody(questionRequestDto.getQuestionBody());
+        question.setUserId(user.getId());
+        question.setUsername(user.getUsername());
+        question.setTopics(topics);
+        question.setCreatedAt(LocalDateTime.now());
+        question.setUpdatedAt(LocalDateTime.now());
+
+        Question savedQuestion = questionRepository.save(question);
+
+        QuestionDocument questionDocument = new QuestionDocument();
+        questionDocument.setId(savedQuestion.getId());
+        questionDocument.setTitle(savedQuestion.getTitle());
+        questionDocument.setContent(savedQuestion.getQuestionBody());
+        
+        questionElasticRepository.save(questionDocument);
+
+        return convertToResponseDto(savedQuestion);
+    }
+
+    public QuestionResponseDto convertToResponseDto(Question question) {
+        List<TopicDto> topicDtos = new ArrayList<>();
+        if (question.getTopics() != null) {
+            topicDtos = question.getTopics().stream()
+                    .map(topic -> new TopicDto(topic.getId(), topic.getName()))
+                    .collect(Collectors.toList());
+        }
+
+        QuestionResponseDto dto = new QuestionResponseDto();
+        dto.setId(question.getId());
+        dto.setTitle(question.getTitle());
+        dto.setQuestionBody(question.getQuestionBody());
+        dto.setUserId(question.getUserId());
+        dto.setUsername(question.getUsername());
+        dto.setCreatedAt(question.getCreatedAt());
+        dto.setUpdatedAt(question.getUpdatedAt());
+        dto.setTopics(topicDtos);
+        return dto;
+    }
+
+    public QuestionDetailsDto getQuestionWithAnswers(String questionId) {
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found with ID: " + questionId));
-
-        // 2. Find all answers for that question using our new repository method
         List<Answer> answers = answerRepository.findByQuestionId(questionId);
-
-        // 3. Convert the list of Answer objects to a list of AnswerResponseDto objects
         List<AnswerResponseDto> answerDtos = answers.stream()
-                .map(this::convertAnswerToDto) // We'll create this helper method
+                .map(this::convertAnswerToDto)
                 .collect(Collectors.toList());
 
-        // 4. Create the final DTO and combine all the data
+        List<TopicDto> topicDtos = new ArrayList<>();
+        if (question.getTopics() != null) {
+            topicDtos = question.getTopics().stream()
+                    .map(topic -> new TopicDto(topic.getId(), topic.getName()))
+                    .collect(Collectors.toList());
+        }
+
         QuestionDetailsDto questionDetailsDto = new QuestionDetailsDto();
         questionDetailsDto.setId(question.getId());
         questionDetailsDto.setTitle(question.getTitle());
@@ -57,12 +132,12 @@ public class QuestionService {
         questionDetailsDto.setUsername(question.getUsername());
         questionDetailsDto.setCreatedAt(question.getCreatedAt());
         questionDetailsDto.setUpdatedAt(question.getUpdatedAt());
-        questionDetailsDto.setAnswers(answerDtos); // Set the list of answers
+        questionDetailsDto.setAnswers(answerDtos);
+        questionDetailsDto.setTopics(topicDtos); // This line is now fixed
 
         return questionDetailsDto;
     }
-
-    // --- ADD THIS NEW HELPER METHOD ---
+    
     private AnswerResponseDto convertAnswerToDto(Answer answer) {
         AnswerResponseDto dto = new AnswerResponseDto();
         dto.setId(answer.getId());
@@ -73,44 +148,8 @@ public class QuestionService {
         dto.setUpvotes(answer.getUpvotes());
         dto.setCreatedAt(answer.getCreatedAt());
         dto.setUpdatedAt(answer.getUpdatedAt());
+        dto.setVoteCount(answer.getVoteCount());
         return dto;
-    }
-    public QuestionResponseDto saveQuestion(QuestionRequestDto questionRequestDto,String username) {//added the username parameter because we need to link the question to the user
-        //find the user in the db using the username from the token you got during authentication
-        User user=userRepository.findByUsername(username).orElseThrow(()->new RuntimeException("User not found: " + username));
-        //create the new Question object and set all the fields including userId and username
-
-        Question question = new Question();
-        question.setTitle(questionRequestDto.getTitle());
-        question.setQuestionBody(questionRequestDto.getQuestionBody());
-        question.setUserId(user.getId());
-        question.setUsername(user.getUsername());
-
-        // 1. Save to MongoDB (primary database)
-        Question savedQuestion = questionRepository.save(question);
-
-        // 2. ALSO save to Elasticsearch (for searching)
-        QuestionDocument questionDocument = new QuestionDocument();
-        questionDocument.setId(savedQuestion.getId());
-        questionDocument.setTitle(savedQuestion.getTitle());
-        questionDocument.setContent(savedQuestion.getQuestionBody());
-
-        // FIX: You must save the 'questionDocument', not the 'savedQuestion'
-        questionElasticRepository.save(questionDocument);
-
-        return convertToResponseDto(savedQuestion);
-    }
-
-    public QuestionResponseDto convertToResponseDto(Question question) {
-        return new QuestionResponseDto(
-                question.getId(),
-                question.getTitle(),
-                question.getQuestionBody(),
-                question.getUserId(),
-                question.getUsername(),
-                question.getCreatedAt(),
-                question.getUpdatedAt()
-        );
     }
 
     public Optional<Question> getQuestionById(String id) {
@@ -124,26 +163,31 @@ public class QuestionService {
                 .collect(Collectors.toList());
     }
 
-
     public List<QuestionResponseDto> searchQuestions(String query) {
         List<QuestionDocument> documents = questionElasticRepository.findByTitleContainingOrContentContaining(query, query);
-
         List<String> ids = documents.stream().map(QuestionDocument::getId).collect(Collectors.toList());
-        
-        
         List<Question> questions = (List<Question>) questionRepository.findAllById(ids);
-        
         return questions.stream()
                 .map(this::convertToResponseDto)
                 .collect(Collectors.toList());
     }
+    
     public List<QuestionResponseDto> getAllQuestions() {
-    // 1. Find all questions from the primary database (MongoDB)
-    List<Question> questions = questionRepository.findAll();
-
-    // 2. Convert each Question object into a QuestionResponseDto
-    return questions.stream()
-            .map(this::convertToResponseDto)
-            .collect(Collectors.toList());
-}
+        List<Question> questions = questionRepository.findAll();
+        return questions.stream()
+                .map(this::convertToResponseDto)
+                .collect(Collectors.toList());
+    }
+    //we will now add a method to get questions by topic
+    public List<QuestionResponseDto>getQuestionsByTopicName(String topicName){
+        //1.find topic by name
+        Topic topic=topicRepository.findByName(topicName)        
+        .orElseThrow(()->new ResourceNotFoundException("Topic not found with name"+topicName));
+        //2.use the question repository to find questions by topic
+        List<Question>questions=questionRepository.findByTopicsContains(topic);
+        //3.convert the list of questions to list of QuestionResponseDto
+        return questions.stream()
+        .map(this::convertToResponseDto)
+        .collect(Collectors.toList());
+    }
 }

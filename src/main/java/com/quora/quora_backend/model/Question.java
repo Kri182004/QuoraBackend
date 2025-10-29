@@ -12,12 +12,15 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.mongodb.core.mapping.DBRef;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(indexName = "questions") // For Elasticsearch
 public class Question {
+  @DBRef //
+    private List<Topic> topics = new ArrayList<>();
 
   @Id
   private String id;

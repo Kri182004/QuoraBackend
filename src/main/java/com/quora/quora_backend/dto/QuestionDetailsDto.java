@@ -14,6 +14,7 @@ public class QuestionDetailsDto {
     private String username;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private List<AnswerResponseDto> answers; // This will hold all the answers
-
+    private List<AnswerResponseDto> answers;
+    
+    private List<TopicDto> topics; // <-- ADD THIS FIELD
 }

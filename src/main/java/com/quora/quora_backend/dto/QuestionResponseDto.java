@@ -3,6 +3,8 @@
 package com.quora.quora_backend.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
@@ -19,5 +21,6 @@ public class QuestionResponseDto {
     private String username;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private List<TopicDto> topics;
 
 }
