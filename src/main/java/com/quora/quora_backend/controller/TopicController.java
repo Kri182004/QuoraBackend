@@ -9,15 +9,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.quora.quora_backend.dto.QuestionResponseDto;
+import com.quora.quora_backend.dto.TopicDto;
 import com.quora.quora_backend.service.QuestionService;
+import com.quora.quora_backend.service.TopicService;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.RequestParam;
+
 
 @RestController
 @RequestMapping("/api/topics")
 @RequiredArgsConstructor
 public class TopicController {
     private final QuestionService questionService;
+    private final TopicService topicService;
     
     @GetMapping("/{topicName}/questions")
     public ResponseEntity<List<QuestionResponseDto>>getQuestionsByTopic(
@@ -40,4 +45,17 @@ It calls questionService.getQuestionsByTopicName("Java").
 The service finds the "Java" topic, then finds all questions linked to it, converts them to DTOs, and returns the list.
 
 The controller sends this list back to the user. */
+@GetMapping
+public ResponseEntity<List<TopicDto>>getAllTopics(){
+    List<TopicDto>topics=topicService.getAllTopics();
+    return ResponseEntity.ok(topics);
+}
+/**private final TopicService... 
+ * → We add this so the controller can use TopicService to get all topics.
+
+@GetMapping → 
+Used for “read” requests. It means this method runs when someone visits /api/topics.
+
+ResponseEntity.ok(topics) → 
+Sends the list of topics back with a 200 OK message (means success). */
 }
