@@ -4,8 +4,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.quora.quora_backend.dto.TopicDto;
+import com.quora.quora_backend.dto.TopicRequestDto;
+import com.quora.quora_backend.exception.ResourceAlreadyExistsException;
 import com.quora.quora_backend.model.Topic;
 import com.quora.quora_backend.repository.TopicRepository;
 
@@ -33,5 +36,26 @@ public class TopicService {
     /**Streams & Mapping: We use the standard stream().map().collect() 
      * pattern to convert the List<Topic> (from the database) into the List<TopicDto>
      *  (which is safe to send to the user).
-     *  We created a simple mapToTopicDto helper for this. */
+    *  We created a simple mapToTopicDto helper for this. */
+
+   @Transactional
+public TopicDto createTopic(TopicRequestDto topicRequestDto) {
+    //1. check if a topic with this name already exists
+    topicRepository.findByName(topicRequestDto.getName()).ifPresent(topic -> {
+        throw new ResourceAlreadyExistsException("Topic already exists with name " + topicRequestDto.getName());
+    });
+
+    //2. create the new topic object
+    Topic newTopic = Topic.builder()
+            .name(topicRequestDto.getName())
+            .description(topicRequestDto.getDescription())
+            .build();
+
+    //3. save the topic to the repository
+    Topic savedTopic = topicRepository.save(newTopic);
+
+    //4. return as DTO
+    return mapToTopicDto(savedTopic);
+}
+
 }
