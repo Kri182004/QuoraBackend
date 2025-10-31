@@ -18,6 +18,10 @@ import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.model.Topic;
 import com.quora.quora_backend.model.User;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.elasticsearch.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -203,14 +207,15 @@ private final VoteRepository voteRepository;
         .collect(Collectors.toList());
     }
     @Transactional(readOnly = true) // Use readOnly for GET requests
-    public List<QuestionResponseDto> getFeed() {
-        // 1. Fetch all questions, sorted by newest first
-        List<Question> questions = questionRepository.findAllByOrderByCreatedAtDesc();
+    public Page<QuestionResponseDto> getFeed(int page,int size) {
 
-        // 2. Convert to DTOs
-        return questions.stream()
-                .map(this::convertToResponseDto) // Reuse your existing converter
-                .collect(Collectors.toList());
+        // 1. Create Pageable object to request a specific page,size,and sort order(newest first)
+        Pageable pageable=PageRequest.of(page,size,Sort.by("createdAt").descending());
+        //2.fetch  the page of questions from repository
+        Page<Question>questionPage=questionRepository.findAllByOrderByCreatedAtDesc(pageable);
+        //3.convert the list of questions to list of page<QuestionResponseDto>
+        //using the biult in map function of Page interface
+        return questionPage.map(this::convertToResponseDto);
     }
 
 
