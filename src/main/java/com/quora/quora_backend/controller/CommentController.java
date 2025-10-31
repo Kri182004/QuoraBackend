@@ -11,7 +11,9 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,5 +61,19 @@ public class CommentController {
     ) {
         List<CommentResponseDto> comments = commentService.getCommentsForParent(answerId, questionId);
         return ResponseEntity.ok(comments);
+    }
+
+    @DeleteMapping("/{commentId}")
+    public ResponseEntity<Void>deleteComment(
+        @PathVariable String commentId,
+        Authentication authentication
+    ){
+        //Get the username of the logged-in user
+        String username=authentication.getName();
+        //Call the service to delete the comment
+        commentService.deleteComment(commentId,username);
+        //Return a no-content response
+        return ResponseEntity.noContent().build();  
+        
     }
 }

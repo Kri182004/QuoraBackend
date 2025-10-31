@@ -2,6 +2,7 @@ package com.quora.quora_backend.service;
 
 import com.quora.quora_backend.dto.CommentRequestDto;
 import com.quora.quora_backend.dto.CommentResponseDto;
+import com.quora.quora_backend.exception.UnauthorizedOperationException;
 import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Comment;
 import com.quora.quora_backend.model.Question;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.data.elasticsearch.ResourceNotFoundException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +30,7 @@ public class CommentService {
     private final UserRepository userRepository;
     private final QuestionRepository questionRepository;
 
-    // --- This is your existing method ---
+    
     @Transactional
     public CommentResponseDto addCommentToAnswer(CommentRequestDto commentRequestDto, String username) {
         User currentUser = userRepository.findByUsername(username)
@@ -44,7 +46,7 @@ public class CommentService {
         return mapToCommentResponseDto(savedComment);
     }
 
-    // --- This is your existing method ---
+    
     @Transactional
     public CommentResponseDto addCommentToQuestion(CommentRequestDto commentRequestDto, String username) {
         User currentUser = userRepository.findByUsername(username)
@@ -60,7 +62,6 @@ public class CommentService {
         return mapToCommentResponseDto(savedComment);
     }
 
-    // --- ADD THIS ENTIRE NEW METHOD ---
     @Transactional
     public CommentResponseDto addReplyToComment(CommentRequestDto commentRequestDto, String username) {
         
@@ -134,4 +135,26 @@ public class CommentService {
         // 4. Return the complete DTO (now with replies, if any)
         return dto;
     }
+    @Transactional
+    public void deleteComment(String commentId,String username){
+        //1.find the comment to be deleted
+        Comment comment=commentRepository.findById(commentId)
+        .orElseThrow(()->new ResourceNotFoundException("Comment not found with id: "+commentId));
+        //2.Find the ser who is making the request
+        User currentUser=userRepository.findByUsername(username)
+        .orElseThrow(()->new UsernameNotFoundException("User not found: "+username));
+        //OWNERSHIP CHECK
+        //3.check if the user's id matches the id of the user who made the comment?
+        if(!comment.getUser().getId().equals(currentUser.getId())){
+                throw new UnauthorizedOperationException("You are not authorized to delete this comment.");
+        }
+        //4.if it is a nested comment,we might need to remove it from its parent's reply list
+        if(comment.getParentComment()!=null){
+                Comment parentComment=comment.getParentComment();
+                parentComment.getReplies().remove(comment);
+                commentRepository.save(parentComment);
+        }
+        //5.delete the comment
+        commentRepository.delete(comment);
+}
 }
