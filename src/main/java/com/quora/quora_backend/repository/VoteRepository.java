@@ -1,5 +1,6 @@
 package com.quora.quora_backend.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -19,7 +20,13 @@ Optional<Vote> findByUserAndQuestion(User user, Question question);
 Optional<Vote> findByUserAndAnswer(User user, Answer answer);
 //this method will help us to find if a user has already voted on an answer,
 //so that we can prevent multiple votes from the same user on the same answer
+List<Vote> findByAnswer(Answer answer);//this method will help us to get all votes for a particular answer
+
+List<Vote> findByQuestion(Question question); //this method will help us to get all votes for a particular question
+
+
 }
+
 
 
 //⚙️ How will the flow work?

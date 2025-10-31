@@ -51,4 +51,31 @@ public class AnswerController {
         List<AnswerResponseDto> answers = answerService.getAnswersForQuestion(questionId);
         return ResponseEntity.ok(answers);
     }
+    @DeleteMapping("/{answerId}")
+    public ResponseEntity<Void>deleteAnswer(
+        @PathVariable String answerId,
+        Authentication authentication
+    ){
+        //get the username of the logged-in user
+        String username=authentication.getName();
+        //call the service layer to delete the answer
+        answerService.deleteAnswer(answerId,username);
+        //return no content status
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
+    @PutMapping("/{answerId}")
+public ResponseEntity<AnswerResponseDto>updateAnswer(
+    @PathVariable String answerId,
+    @Valid @RequestBody AnswerRequestDto answerRequestDto,
+    Authentication authentication)  {
+        //Get the logged-in user's username
+        String username=authentication.getName();
+        //Call the service layer to update the answer
+        AnswerResponseDto updatedAnswer=answerService.updateAnswer(answerId,answerRequestDto,username);
+        //Return the updated answer
+        return ResponseEntity.ok(updatedAnswer);
+
+    } 
+
 }

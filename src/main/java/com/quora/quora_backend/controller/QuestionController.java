@@ -4,9 +4,11 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -86,4 +88,31 @@ public ResponseEntity<List<QuestionResponseDto>> getAllQuestions() {
         voteService.voteOnQuestion(questionId, voteRequestDto.getVoteType());
         return ResponseEntity.ok().build();
     }
+
+@DeleteMapping("/{questionId}")
+public ResponseEntity<Void>deleteQuestion(
+    @PathVariable String questionId,
+    Authentication authentication
+){
+    //Get the logged-in user's username
+    String username=authentication.getName();
+    //Call the service to delete the question
+    questionService.deleteQuestion(questionId,username);
+    //Return a no-content response
+    return ResponseEntity.noContent().build();
+}
+@PutMapping("/{questionId}")
+public ResponseEntity<QuestionResponseDto>updateQuestion(
+    @PathVariable String questionId,
+    @Valid @RequestBody QuestionRequestDto questionRequestDto,
+    Authentication authentication/*we get the logged-in user's identity
+     to pass their username to the service layer for the ownership check. */
+){
+    //Get the logged-in user's username
+    String username=authentication.getName();
+    //Call the service to update the question
+    QuestionResponseDto updatedQuestion=questionService.updateQuestion(questionId,questionRequestDto,username);
+    //Return the updated question
+    return ResponseEntity.ok(updatedQuestion);
+}
 }

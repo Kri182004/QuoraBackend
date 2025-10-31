@@ -2,11 +2,17 @@ package com.quora.quora_backend.service;
 
 import com.quora.quora_backend.document.QuestionDocument;
 import com.quora.quora_backend.repository.AnswerRepository;
+import com.quora.quora_backend.repository.CommentRepository;
 import com.quora.quora_backend.repository.QuestionRepository;
 import com.quora.quora_backend.repository.TopicRepository;
 import com.quora.quora_backend.repository.UserRepository;
+import com.quora.quora_backend.repository.VoteRepository;
 import com.quora.quora_backend.repository.elastic.QuestionElasticRepository;
+
+import jakarta.annotation.Resource;
+
 import com.quora.quora_backend.dto.*;
+import com.quora.quora_backend.exception.UnauthorizedOperationException;
 import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.model.Topic;
@@ -30,17 +36,23 @@ public class QuestionService {
     private final UserRepository userRepository;
     private final AnswerRepository answerRepository;
     private final TopicRepository topicRepository;
-
+    private final CommentRepository commentRepository;
+private final VoteRepository voteRepository;
     public QuestionService(QuestionRepository questionRepository,
                            QuestionElasticRepository questionElasticRepository,
                            UserRepository userRepository,
                            AnswerRepository answerRepository,
-                           TopicRepository topicRepository) {
+                           TopicRepository topicRepository,
+                           CommentRepository commentRepository,
+                           VoteRepository voteRepository
+                           ) {
         this.questionRepository = questionRepository;
         this.questionElasticRepository = questionElasticRepository;
         this.userRepository = userRepository;
         this.answerRepository = answerRepository;
         this.topicRepository = topicRepository;
+        this.commentRepository = commentRepository;
+        this.voteRepository = voteRepository;
     }
 
     @Transactional
@@ -199,5 +211,71 @@ public class QuestionService {
         return questions.stream()
                 .map(this::convertToResponseDto) // Reuse your existing converter
                 .collect(Collectors.toList());
+    }
+
+
+    @Transactional
+    public void deleteQuestion(String questionId,String username){
+        //1.find the user
+        User currentUser=userRepository.findByUsername(username)
+        .orElseThrow(()->new ResourceNotFoundException("User not found with username: "+username));
+        //2.find the question to be deleted
+        Question question=questionRepository.findById(questionId)
+        .orElseThrow(()->new ResourceNotFoundException("Question not found with id: "+questionId));
+        //3.CRITICAL OWNERSHIP CHECK
+        if(!question.getUserId().equals(currentUser.getId())){
+            throw new UnauthorizedOperationException("You are not authorized to delete this question");
+        }
+        //4.Cascade delete: delete all answers, comments ,vote associated with the question
+        List<Answer>answers=answerRepository.findByQuestionId(questionId);
+        if(answers!=null && !answers.isEmpty()){
+            for(Answer answer:answers){
+                commentRepository.deleteAll(commentRepository.findByAnswerId(answer.getId()));
+                voteRepository.deleteAll(voteRepository.findByAnswer(answer));
+            }
+            //delete all answers
+answerRepository.deleteAll(answers);
+        }
+        //delete the comment on the question itself
+        commentRepository.deleteAll(commentRepository.findByQuestionId(questionId));
+       //delte all votes on question
+       voteRepository.deleteAll(voteRepository.findByQuestion(question));
+       //5.delte the question from mongo and elasticsearch
+        questionRepository.delete(question);
+        questionElasticRepository.deleteById(questionId);
+    }
+
+
+    //new method for updating a question
+    @Transactional
+    public QuestionResponseDto updateQuestion(String questionId,QuestionRequestDto questionRequestDto,String username){
+        //1.find the user
+        User currentUser=userRepository.findByUsername(username)
+        .orElseThrow(()->new ResourceNotFoundException("User not found with username: "+username));
+        //2.find the question to be updated
+        Question question=questionRepository.findById(questionId)
+        .orElseThrow(()->new ResourceNotFoundException("Question not found with id: "+questionId));
+        //3.CRITICAL OWNERSHIP CHECK
+        if(!question.getUserId().equals(currentUser.getId())){
+            throw new UnauthorizedOperationException("You are not authorized to update this question");
+        }
+        //4.update the question fields
+        question.setTitle(questionRequestDto.getTitle());
+        question.setQuestionBody(questionRequestDto.getQuestionBody());
+        question.setUpdatedAt(LocalDateTime.now());
+        //update topics
+        List<Topic>topics=getOrCreateTopics(questionRequestDto.getTopicNames());
+        question.setTopics(topics);
+        //5.save the updated question
+        Question updatedQuestion=questionRepository.save(question);
+        //6.update elasticsearch document
+        QuestionDocument questionDocument=questionElasticRepository.findById(questionId)
+        .orElseThrow(()->new ResourceNotFoundException("Question document not found with id: "+questionId));
+        questionDocument.setTitle(updatedQuestion.getTitle());
+        questionDocument.setId(updatedQuestion.getId());
+        questionDocument.setContent(updatedQuestion.getQuestionBody());
+        questionElasticRepository.save(questionDocument);
+        //7.return the updated question as DTO
+        return convertToResponseDto(updatedQuestion);
     }
 }
