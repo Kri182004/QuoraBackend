@@ -4,7 +4,9 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -70,5 +72,22 @@ public ResponseEntity<TopicDto>createTopic(
         TopicDto newTopic=topicService.createTopic(topicRequestDto);
         return new ResponseEntity<>(newTopic,HttpStatus.CREATED);
     }
-
+@PostMapping("/{topicId}/follow")
+    public ResponseEntity<Void> followTopic(
+            @PathVariable String topicId,
+            Authentication authentication
+    ) {
+        String username = authentication.getName();
+        topicService.followTopic(topicId, username);
+        return ResponseEntity.ok().build(); // Returns 200 OK
+    }
+@DeleteMapping("/{topicId}/follow")
+    public ResponseEntity<Void>unfollowTopic(
+            @PathVariable String topicId,
+            Authentication authentication
+    ) {
+        String username = authentication.getName();
+        topicService.unfollowTopic(topicId, username);
+        return ResponseEntity.noContent().build(); // Returns 200 OK
+    }
 }
