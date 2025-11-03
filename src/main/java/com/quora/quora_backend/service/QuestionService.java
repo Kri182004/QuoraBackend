@@ -23,6 +23,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.elasticsearch.ResourceNotFoundException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -206,15 +207,30 @@ private final VoteRepository voteRepository;
         .map(this::convertToResponseDto)
         .collect(Collectors.toList());
     }
-    @Transactional(readOnly = true) // Use readOnly for GET requests
-    public Page<QuestionResponseDto> getFeed(int page,int size) {
+    @Transactional(readOnly = true)
+    public Page<QuestionResponseDto> getFeed(int page, int size, String username) {
+        
+        // 1. Find the current user and their followed topics
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+        
+        List<Topic> followedTopics = currentUser.getFollowedTopics();
 
-        // 1. Create Pageable object to request a specific page,size,and sort order(newest first)
-        Pageable pageable=PageRequest.of(page,size,Sort.by("createdAt").descending());
-        //2.fetch  the page of questions from repository
-        Page<Question>questionPage=questionRepository.findAllByOrderByCreatedAtDesc(pageable);
-        //3.convert the list of questions to list of page<QuestionResponseDto>
-        //using the biult in map function of Page interface
+        // 2. Create the Pageable object (sort by newest first)
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        Page<Question> questionPage;
+
+        // 3. Check if the user follows any topics
+        if (followedTopics != null && !followedTopics.isEmpty()) {
+            // If YES: Fetch a paged list of questions that are in their followed topics
+            questionPage = questionRepository.findByTopicsIn(followedTopics, pageable);
+        } else {
+            // If NO: Fall back to the old logic (show all recent questions)
+            questionPage = questionRepository.findAllByOrderByCreatedAtDesc(pageable);
+        }
+
+        // 4. Convert and return the DTO Page
         return questionPage.map(this::convertToResponseDto);
     }
 

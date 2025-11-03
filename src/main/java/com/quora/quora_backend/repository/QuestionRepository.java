@@ -14,6 +14,9 @@ public interface QuestionRepository  extends MongoRepository<Question, String> {
  List<Question> findByUserId(String userId);//method to find questions by user ID
  List<Question> findByTopicsContains(Topic topic);//method to find questions by topic
  Page<Question> findAllByOrderByCreatedAtDesc(Pageable pageable);//// Finds all questions, sorts them by createdAt descending
+Page<Question> findByTopicsIn(List<Topic> topics, Pageable pageable);/*
+It automatically builds a query that finds all Question documents where the topics 
+list contains at least one of the Topic objects from the topics list we provide. */
 }
 /*
 Pageable = tells Spring how to fetch data
