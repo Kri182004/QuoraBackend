@@ -1,5 +1,7 @@
 package com.quora.quora_backend.service;
 
+import com.quora.quora_backend.config.KafkaTopicConfig;
+import com.quora.quora_backend.dto.AnswerEvent;
 import com.quora.quora_backend.dto.AnswerRequestDto;
 import com.quora.quora_backend.dto.AnswerResponseDto;
 import com.quora.quora_backend.exception.UnauthorizedOperationException;
@@ -15,6 +17,7 @@ import com.quora.quora_backend.repository.VoteRepository;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.elasticsearch.ResourceNotFoundException;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +29,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AnswerService {
+        private final KafkaTemplate<String,AnswerEvent> kafkaTemplate;
+        /*This is the main tool Spring gives us for sending messages (a "producer").
+         We inject it into our service just like a repository. We specify <String, AnswerEvent> to tell it our
+         message "key" will be a String (we can leave it null) and our "value" (the message itself) is our AnswerEvent object. */
 
     private final AnswerRepository answerRepository;
     private final QuestionRepository questionRepository;
@@ -61,6 +68,22 @@ public class AnswerService {
         // 5. Link the new answer to the question's list of answers
         question.getAnswers().add(savedAnswer);
         questionRepository.save(question);
+        // PUBLISHING A KAFKA EVENT FOR THE NEW ANSWER
+        //SEND a notification ebent to kafka
+        try{
+                AnswerEvent event=AnswerEvent.builder()
+                .answerId(savedAnswer.getId())
+                .questionId(question.getId())
+                .authorUsername(currentUser.getUsername())
+                .questionOwnerId(question.getUserId())
+                .build();
+                kafkaTemplate.send(KafkaTopicConfig.NOTIFICATION_TOPIC,event);
+                /*This is the main tool Spring gives us for sending messages (a "producer") */
+        }catch(Exception e){
+                //log the error,but dont block the main flow
+                //we want the answer to be created and saved even if kafka is down
+                System.err.println("Failed to publish answer event to Kafka: "+e.getMessage());
+        }
 
         // 6. Convert the saved Answer to an AnswerResponseDto and return it
         return mapToAnswerResponseDto(savedAnswer);
@@ -130,6 +153,7 @@ public class AnswerService {
                 .map(this::mapToAnswerResponseDto)
                 .collect(Collectors.toList());
     }
+
     // Helper method to convert Model to DTO (using your model's fields)
     public AnswerResponseDto mapToAnswerResponseDto(Answer answer) {
         return AnswerResponseDto.builder()

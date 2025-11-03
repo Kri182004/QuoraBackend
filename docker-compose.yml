@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.1
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.0.1
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+
+
+/*zookeeper: This service is like Kafka's brain. It manages the state of the Kafka cluster, tracks which brokers are alive, and holds configuration data.
+
+kafka: This is the main Kafka broker (the "post office").
+
+depends_on: - zookeeper: This tells Docker to start ZooKeeper before starting Kafka, which is required.
+
+ports: - "9092:9092": This maps port 9092 on your local machine to port 9092 inside the Docker container. This is the default port Spring Boot will use to talk to Kafka.
+
+KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092: This is a key line. It tells Kafka, "If anyone (like your Spring Boot app) wants to talk to you, tell them to connect to localhost:9092."
