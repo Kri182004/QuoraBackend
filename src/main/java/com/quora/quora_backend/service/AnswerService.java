@@ -1,6 +1,6 @@
 package com.quora.quora_backend.service;
 
-import com.quora.quora_backend.config.KafkaTopicConfig;
+import com.quora.quora_backend.config.KafkaConfig;
 import com.quora.quora_backend.dto.AnswerEvent;
 import com.quora.quora_backend.dto.AnswerRequestDto;
 import com.quora.quora_backend.dto.AnswerResponseDto;
@@ -8,31 +8,27 @@ import com.quora.quora_backend.exception.UnauthorizedOperationException;
 import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.model.User;
-import com.quora.quora_backend.repository.AnswerRepository;
-import com.quora.quora_backend.repository.CommentRepository;
-import com.quora.quora_backend.repository.QuestionRepository;
-import com.quora.quora_backend.repository.UserRepository;
-import com.quora.quora_backend.repository.VoteRepository;
-
+import com.quora.quora_backend.repository.*;
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.data.elasticsearch.ResourceNotFoundException;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.List;
+
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AnswerService {
-        private final KafkaTemplate<String,AnswerEvent> kafkaTemplate;
-        /*This is the main tool Spring gives us for sending messages (a "producer").
-         We inject it into our service just like a repository. We specify <String, AnswerEvent> to tell it our
-         message "key" will be a String (we can leave it null) and our "value" (the message itself) is our AnswerEvent object. */
+
+    private final KafkaTemplate<String, Object> kafkaTemplate; 
+    // 👆 changed <String, AnswerEvent> → <String, Object>
+    // Reason: we will now send multiple object types (AnswerEvent, CommentEvent, etc.)
 
     private final AnswerRepository answerRepository;
     private final QuestionRepository questionRepository;
@@ -42,119 +38,104 @@ public class AnswerService {
 
     @Transactional
     public AnswerResponseDto addAnswer(String questionId, AnswerRequestDto answerRequestDto, String username) {
-        
-        // 1. Find the user who is posting
+
+        // 1️⃣ Find user
         User currentUser = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
-        // 2. Find the question being answered to ensure it exists
+        // 2️⃣ Find question
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new IllegalStateException("Question not found with ID: " + questionId));
 
-        // 3. Create the new Answer object (using your model's fields)
+        // 3️⃣ Create answer
         Answer newAnswer = Answer.builder()
                 .content(answerRequestDto.getContent())
-                .questionId(question.getId()) // Set the String ID
-                .userId(currentUser.getId()) // Set the String ID
-                .username(currentUser.getUsername()) // Store the username
+                .questionId(question.getId())
+                .userId(currentUser.getId())
+                .username(currentUser.getUsername())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
-                .voteCount(0) // Set default vote count
+                .voteCount(0)
                 .build();
-        
-        // 4. Save the new answer
-        Answer savedAnswer = answerRepository.save(newAnswer);
 
-        // 5. Link the new answer to the question's list of answers
+        // 4️⃣ Save answer
+        Answer savedAnswer = answerRepository.save(newAnswer);
         question.getAnswers().add(savedAnswer);
         questionRepository.save(question);
-        // PUBLISHING A KAFKA EVENT FOR THE NEW ANSWER
-        //SEND a notification ebent to kafka
-        try{
-                AnswerEvent event=AnswerEvent.builder()
-                .answerId(savedAnswer.getId())
-                .questionId(question.getId())
-                .authorUsername(currentUser.getUsername())
-                .questionOwnerId(question.getUserId())
-                .build();
-                kafkaTemplate.send(KafkaTopicConfig.NOTIFICATION_TOPIC,event);
-                /*This is the main tool Spring gives us for sending messages (a "producer") */
-        }catch(Exception e){
-                //log the error,but dont block the main flow
-                //we want the answer to be created and saved even if kafka is down
-                System.err.println("Failed to publish answer event to Kafka: "+e.getMessage());
-        }
 
-        // 6. Convert the saved Answer to an AnswerResponseDto and return it
+        // 5️⃣ Send Kafka event
+        try {
+    AnswerEvent event = AnswerEvent.builder()
+            .answerId(savedAnswer.getId())
+            .questionId(question.getId())
+            .authorUsername(currentUser.getUsername())
+            .questionOwnerId(question.getUserId()) // the one who should get notification
+            .build();
+
+    kafkaTemplate.send(
+            MessageBuilder
+                    .withPayload(event)
+                    .setHeader(KafkaHeaders.TOPIC, KafkaConfig.ANSWER_TOPIC)
+                    .setHeader("__TypeId__", "ANSWER_EVENT")
+                    .build()
+    );
+    System.out.println("===> KAFKA PRODUCER: Sent AnswerEvent ✅");
+
+} catch (Exception e) {
+    System.err.println("Failed to send Kafka message: " + e.getMessage());
+}
+
+        // 6️⃣ Return DTO
         return mapToAnswerResponseDto(savedAnswer);
     }
 
-
     @Transactional
     public void deleteAnswer(String answerId, String username) {
-        // 1. Find the answer to be deleted
         Answer answer = answerRepository.findById(answerId)
                 .orElseThrow(() -> new IllegalStateException("Answer not found with ID: " + answerId));
 
-        // 2. Find the user attempting the deletion
         User currentUser = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
-        // 3. Check ownership
         if (!answer.getUserId().equals(currentUser.getId())) {
             throw new IllegalStateException("You are not authorized to delete this answer");
         }
-        //4.cascade delete(cleanup related data) if any (e.g., comments,votes)
-       //deleta all comments related to this answer
+
         commentRepository.deleteAll(commentRepository.findByAnswerId(answerId));
-        // delete all votes related to this answer
         voteRepository.deleteAll(voteRepository.findByAnswer(answer));
-        // 4. Delete the answer
-        //remove answer from the question's list of answers
-        Question question=questionRepository.findById(answer.getQuestionId()).orElse(null);
-        if(question!=null){
+
+        Question question = questionRepository.findById(answer.getQuestionId()).orElse(null);
+        if (question != null) {
             question.getAnswers().remove(answer);
             questionRepository.save(question);
         }
         answerRepository.delete(answer);
     }
+
     @Transactional
     public AnswerResponseDto updateAnswer(String answerId, AnswerRequestDto requestDto, String username) {
-        // 1. Find the user
         User currentUser = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
-        // 2. Find the answer
         Answer answer = answerRepository.findById(answerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Answer not found with ID: " + answerId));
-         //3.check ownership
-         if(!answer.getUserId().equals(currentUser.getId())){
-          throw new UnauthorizedOperationException("You are not authorized to update this answer");
+
+        if (!answer.getUserId().equals(currentUser.getId())) {
+            throw new UnauthorizedOperationException("You are not authorized to update this answer");
         }
-        //4.update the answer content and timestamp
+
         answer.setContent(requestDto.getContent());
         answer.setUpdatedAt(LocalDateTime.now());
-        //5.save the updated answer
-        Answer updatedAnswer=answerRepository.save(answer);
-        //6.convert to DTO and return
-        return mapToAnswerResponseDto(updatedAnswer);   
-}
+        Answer updatedAnswer = answerRepository.save(answer);
 
-         
-
-
-    public List<AnswerResponseDto> getAnswersForQuestion(String questionId) {
-        
-        // 1. Use the repository to get all raw Answer models
-        List<Answer> answers = answerRepository.findByQuestionId(questionId);
-
-        // 2. Convert the list of Answer models into a list of AnswerResponseDto
-        return answers.stream()
-                .map(this::mapToAnswerResponseDto)
-                .collect(Collectors.toList());
+        return mapToAnswerResponseDto(updatedAnswer);
     }
 
-    // Helper method to convert Model to DTO (using your model's fields)
+    public List<AnswerResponseDto> getAnswersForQuestion(String questionId) {
+        List<Answer> answers = answerRepository.findByQuestionId(questionId);
+        return answers.stream().map(this::mapToAnswerResponseDto).collect(Collectors.toList());
+    }
+
     public AnswerResponseDto mapToAnswerResponseDto(Answer answer) {
         return AnswerResponseDto.builder()
                 .id(answer.getId())

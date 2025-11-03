@@ -7,20 +7,11 @@ import lombok.NoArgsConstructor;
 
 @Data
 @Builder
-@NoArgsConstructor
 @AllArgsConstructor
-
-//Structure for the event sent when an answer is created or updated
+@NoArgsConstructor
 public class AnswerEvent {
     private String answerId;
     private String questionId;
-    private String authorUsername;
-    private String questionOwnerId;
-
+    private String authorUsername;   // who wrote the answer
+    private String questionOwnerId;  // who should be notified
 }
-/*instead of just sending a plain string like "new answer!", we're sending a structured object. 
-This gives our "Notification Service" (which we'll build later) all the
- information it needs to send a useful notification. */
- /*Gives the Notification Service everything it needs to send a proper “someone answered your question” message.
-
-Makes data transfer structured, expandable, and reliable. */
