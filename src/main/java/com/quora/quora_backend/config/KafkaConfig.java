@@ -73,31 +73,4 @@ public class KafkaConfig {
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), deserializer);
     }
-
-    // Message converter: maps between JSON and objects, also used by producer template
-    @Bean
-    public RecordMessageConverter multiTypeConverter() {
-        return new StringJsonMessageConverter();
-    }
-
-    // Listener container factory with DLQ (prevents poison pill infinite retries)
-    @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
-            ConsumerFactory<String, Object> consumerFactory,
-            RecordMessageConverter multiTypeConverter,
-            KafkaTemplate<String, Object> kafkaTemplate) {
-
-        ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(consumerFactory);
-        factory.setRecordMessageConverter(multiTypeConverter);
-
-        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate,
-                (record, ex) -> new TopicPartition(record.topic() + ".DLQ", record.partition()));
-
-        // FixedBackOff(interval, maxAttempts) -> tries 3 times, then publish to DLQ
-        DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
-        factory.setCommonErrorHandler(errorHandler);
-        factory.setConcurrency(1);
-        return factory;
-    }
 }
