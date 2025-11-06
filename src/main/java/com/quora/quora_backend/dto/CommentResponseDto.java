@@ -5,25 +5,17 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.Instant;
-import java.util.List;
 
 @Data
 @Builder
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public class CommentResponseDto {
     private String id;
     private String content;
-    private Instant createdAt;
-    
-    // User info
-    private String userId;
     private String username;
-    
-    // Pointers
     private String questionId;
     private String answerId;
     private String parentCommentId;
-
-    private List<CommentResponseDto> replies;
+    private Instant createdAt;
 }

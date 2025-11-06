@@ -1,52 +1,41 @@
 package com.quora.quora_backend.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
+import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
-import jakarta.validation.constraints.NotBlank;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+@Document(collection = "comments")
 @Data
 @Builder
-@NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "comments")
+@NoArgsConstructor
 public class Comment {
 
     @Id
     private String id;
 
-    @NotBlank(message = "Comment content cannot be empty")
     private String content;
 
-    @CreatedDate
-    @Builder.Default
-    private Instant createdAt = Instant.now();
+    private Instant createdAt;
+    private Instant updatedAt;
 
-    @DBRef
-    private User user;
+    // user who made the comment
+    private String userId;
+    private String username;
 
-    // --- Pointers to what this comment belongs to ---
-    // A comment will only have ONE of these three fields set.
+    // either questionId or answerId will be set depending on where comment was made
+    private String questionId;
+    private String answerId;
 
-    @DBRef
-    private Question question; // Set if this is a comment on a Question
+    // parent comment id if this is a reply
+    private String parentCommentId;
 
-    @DBRef
-    private Answer answer; // Set if this is a comment on an Answer
-
-    @DBRef
-    private Comment parentComment; // Set if this is a reply to another Comment
-
-    // --- For nested replies ---
-    @DBRef
+    // replies (optional, not always populated)
     @Builder.Default
     private List<Comment> replies = new ArrayList<>();
 }

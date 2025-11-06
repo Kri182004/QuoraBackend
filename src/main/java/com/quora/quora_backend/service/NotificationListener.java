@@ -3,8 +3,6 @@ package com.quora.quora_backend.service;
 import com.quora.quora_backend.config.KafkaConfig;
 import com.quora.quora_backend.dto.AnswerEvent;
 import com.quora.quora_backend.dto.CommentEvent;
-import com.quora.quora_backend.model.User;
-import com.quora.quora_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -15,23 +13,21 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @KafkaListener(
         topics = KafkaConfig.NOTIFICATIONS_TOPIC,
-        groupId = "quora-backend-group", // This must match application.properties
-        containerFactory = "kafkaListenerContainerFactory" // This is the magic line
+        groupId = "quora-backend-group",
+        containerFactory = "kafkaListenerContainerFactory"
 )
 public class NotificationListener {
 
-    private final UserRepository userRepository;
-
     @KafkaHandler
     public void handleAnswerEvent(@Payload AnswerEvent event) {
-        // ... (your logic to print "SENDING NOTIFICATION (NEW ANSWER)") ...
-        System.out.println("? [Kafka Consumer] Received AnswerEvent: " + event);
+        System.out.println("✅ [Kafka Consumer] Received AnswerEvent: " + event);
+        // TODO: add notification sending logic here (email/push/db record)
     }
 
     @KafkaHandler
     public void handleCommentEvent(@Payload CommentEvent event) {
-        // ... (your logic to print "SENDING NOTIFICATION (NEW COMMENT)") ...
-        System.out.println("? [Kafka Consumer] Received CommentEvent: " + event);
+        System.out.println("✅ [Kafka Consumer] Received CommentEvent: " + event);
+        // TODO: add notification sending logic here (email/push/db record)
     }
 
     @KafkaHandler(isDefault = true)
