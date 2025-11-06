@@ -7,4 +7,7 @@ import java.util.List;
 public interface CommentRepository extends MongoRepository<Comment, String> {
     List<Comment> findByAnswerId(String answerId);
     List<Comment> findByQuestionId(String questionId);
+    // Find only top-level comments (where parentComment is null)
+    List<Comment> findByAnswerIdAndParentCommentIsNull(String answerId);
+    List<Comment> findByQuestionIdAndParentCommentIsNull(String questionId);
 }

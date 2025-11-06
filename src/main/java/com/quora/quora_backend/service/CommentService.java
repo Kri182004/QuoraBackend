@@ -2,6 +2,7 @@ package com.quora.quora_backend.service;
 
 import com.quora.quora_backend.dto.CommentRequestDto;
 import com.quora.quora_backend.dto.CommentResponseDto;
+import org.springframework.data.elasticsearch.ResourceNotFoundException;
 import com.quora.quora_backend.exception.UnauthorizedOperationException;
 import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Comment;
@@ -16,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.data.elasticsearch.ResourceNotFoundException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,11 +36,12 @@ public class CommentService {
         User currentUser = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
         Answer answer = answerRepository.findById(commentRequestDto.getAnswerId())
-                .orElseThrow(() -> new IllegalStateException("Answer not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Answer not found with id: " + commentRequestDto.getAnswerId()));
+        
         Comment newComment = Comment.builder()
                 .content(commentRequestDto.getContent())
-                .user(currentUser)
-                .answer(answer)
+                .user(currentUser) // <-- Uses User object
+                .answer(answer)   // <-- Uses Answer object
                 .build();
         Comment savedComment = commentRepository.save(newComment);
         return mapToCommentResponseDto(savedComment);
@@ -52,11 +53,12 @@ public class CommentService {
         User currentUser = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
         Question question = questionRepository.findById(commentRequestDto.getQuestionId())
-                .orElseThrow(() -> new IllegalStateException("Question not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Question not found with id: " + commentRequestDto.getQuestionId()));
+        
         Comment newComment = Comment.builder()
                 .content(commentRequestDto.getContent())
-                .user(currentUser)
-                .question(question)
+                .user(currentUser)     // <-- Uses User object
+                .question(question) // <-- Uses Question object
                 .build();
         Comment savedComment = commentRepository.save(newComment);
         return mapToCommentResponseDto(savedComment);
@@ -65,96 +67,106 @@ public class CommentService {
     @Transactional
     public CommentResponseDto addReplyToComment(CommentRequestDto commentRequestDto, String username) {
         
-        // 1. Find the logged-in user
         User currentUser = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
-        // 2. Find the parent comment they are replying to
         Comment parentComment = commentRepository.findById(commentRequestDto.getParentCommentId())
-                .orElseThrow(() -> new IllegalStateException("Parent comment not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Parent comment not found with id: " + commentRequestDto.getParentCommentId()));
 
-        // 3. Create the new reply Comment object
         Comment newReply = Comment.builder()
                 .content(commentRequestDto.getContent())
-                .user(currentUser)
-                .parentComment(parentComment) // <-- We link it to its parent
+                .user(currentUser)           // <-- Uses User object
+                .parentComment(parentComment) // <-- Uses Comment object
                 .build();
 
-        // 4. Save the new reply
         Comment savedReply = commentRepository.save(newReply);
 
-        // 5. Add the new reply to the parent's list of replies and re-save the parent
+        // This works because your model initializes replies = new ArrayList<>()
         parentComment.getReplies().add(savedReply);
         commentRepository.save(parentComment);
 
-        // 6. Return the new reply as a DTO
         return mapToCommentResponseDto(savedReply);
     }
 
     public List<CommentResponseDto> getCommentsForParent(String answerId, String questionId) {
         List<Comment> comments;
 
-        // 1. Find the top-level comments for either the answer or question
         if (answerId != null) {
-            comments = commentRepository.findByAnswerId(answerId);
+            // Find only top-level comments (where parentComment is null) for an answer
+            comments = commentRepository.findByAnswerIdAndParentCommentIsNull(answerId);
         } else if (questionId != null) {
-            comments = commentRepository.findByQuestionId(questionId);
+            // Find only top-level comments (where parentComment is null) for a question
+            comments = commentRepository.findByQuestionIdAndParentCommentIsNull(questionId);
         } else {
-            // If no ID is provided, return an empty list
             return List.of(); 
         }
 
-        // 2. Convert the list of Comment models into a list of DTOs
         return comments.stream()
                 .map(this::mapToCommentResponseDto)
                 .collect(Collectors.toList());
     }
-    // --- This is your existing helper method, no changes ---
-   private CommentResponseDto mapToCommentResponseDto(Comment comment) {
-        // 1. Map the main (parent) comment
-        CommentResponseDto dto = CommentResponseDto.builder()
+
+    @Transactional
+    public void deleteComment(String commentId, String username) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Comment not found with id: " + commentId));
+        
+        User currentUser = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+        
+        // --- This logic now works perfectly ---
+        if (!comment.getUser().getId().equals(currentUser.getId())) {
+            throw new UnauthorizedOperationException("You are not authorized to delete this comment.");
+        }
+        
+        // Remove from parent's reply list
+        if (comment.getParentComment() != null) {
+            Comment parentComment = comment.getParentComment();
+            if (parentComment.getReplies() != null) {
+                parentComment.getReplies().remove(comment);
+                commentRepository.save(parentComment);
+            }
+        }
+        
+        deleteCommentAndChildren(comment);
+    }
+
+    /**
+     * Recursively deletes a comment and all its replies.
+     */
+    private void deleteCommentAndChildren(Comment comment) {
+        if (comment.getReplies() != null && !comment.getReplies().isEmpty()) {
+            List<Comment> repliesCopy = List.copyOf(comment.getReplies());
+            for (Comment reply : repliesCopy) {
+                deleteCommentAndChildren(reply);
+            }
+        }
+        commentRepository.delete(comment);
+    }
+ 
+    /**
+     * Maps a Comment entity to its DTO, including all nested replies.
+     */
+    private CommentResponseDto mapToCommentResponseDto(Comment comment) {
+        List<CommentResponseDto> replyDtos = List.of(); 
+
+        if (comment.getReplies() != null && !comment.getReplies().isEmpty()) {
+            replyDtos = comment.getReplies().stream()
+                    .map(this::mapToCommentResponseDto) // <-- Recursive call
+                    .collect(Collectors.toList());
+        }
+
+        // --- This logic now works perfectly ---
+        return CommentResponseDto.builder()
                 .id(comment.getId())
                 .content(comment.getContent())
                 .createdAt(comment.getCreatedAt())
-                .userId(comment.getUser().getId())
-                .username(comment.getUser().getUsername())
+                .userId(comment.getUser().getId()) // <-- Gets ID from User object
+                .username(comment.getUser().getUsername()) // <-- Gets Username from User object
                 .answerId(comment.getAnswer() != null ? comment.getAnswer().getId() : null)
                 .questionId(comment.getQuestion() != null ? comment.getQuestion().getId() : null)
                 .parentCommentId(comment.getParentComment() != null ? comment.getParentComment().getId() : null)
+                .replies(replyDtos)
                 .build();
-
-        // 2. Check if this comment has replies
-        if (comment.getReplies() != null && !comment.getReplies().isEmpty()) {
-            // 3. If it does, map each reply by calling this SAME method
-            List<CommentResponseDto> replyDtos = comment.getReplies().stream()
-                    .map(this::mapToCommentResponseDto) // <-- RECURSION HAPPENS HERE
-                    .collect(Collectors.toList());
-            dto.setReplies(replyDtos);
-        }
-
-        // 4. Return the complete DTO (now with replies, if any)
-        return dto;
     }
-    @Transactional
-    public void deleteComment(String commentId,String username){
-        //1.find the comment to be deleted
-        Comment comment=commentRepository.findById(commentId)
-        .orElseThrow(()->new ResourceNotFoundException("Comment not found with id: "+commentId));
-        //2.Find the ser who is making the request
-        User currentUser=userRepository.findByUsername(username)
-        .orElseThrow(()->new UsernameNotFoundException("User not found: "+username));
-        //OWNERSHIP CHECK
-        //3.check if the user's id matches the id of the user who made the comment?
-        if(!comment.getUser().getId().equals(currentUser.getId())){
-                throw new UnauthorizedOperationException("You are not authorized to delete this comment.");
-        }
-        //4.if it is a nested comment,we might need to remove it from its parent's reply list
-        if(comment.getParentComment()!=null){
-                Comment parentComment=comment.getParentComment();
-                parentComment.getReplies().remove(comment);
-                commentRepository.save(parentComment);
-        }
-        //5.delete the comment
-        commentRepository.delete(comment);
-}
 }

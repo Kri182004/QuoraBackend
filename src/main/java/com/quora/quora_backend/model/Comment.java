@@ -1,7 +1,11 @@
 package com.quora.quora_backend.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -21,21 +25,35 @@ public class Comment {
 
     private String content;
 
+    @CreatedDate // Automatically sets creation time
     private Instant createdAt;
+    
+    @LastModifiedDate // Automatically sets update time
     private Instant updatedAt;
 
+    // --- FIX 1: Changed from String IDs to @DBRef objects ---
+
     // user who made the comment
-    private String userId;
-    private String username;
+    @DBRef
+    private User user;
 
-    // either questionId or answerId will be set depending on where comment was made
-    private String questionId;
-    private String answerId;
+    // The comment is on EITHER a question OR an answer
+    @DBRef
+    private Question question;
 
-    // parent comment id if this is a reply
-    private String parentCommentId;
+    @DBRef
+    private Answer answer;
 
-    // replies (optional, not always populated)
+    // --- FIX 2: Fixed parent/child relationship ---
+
+    // This is the parent (if this comment is a reply)
+    @DBRef
+    @JsonBackReference // Prevents infinite JSON loops
+    private Comment parentComment;
+
+    // These are the replies to THIS comment
+    @DBRef
     @Builder.Default
+    @JsonManagedReference // Prevents infinite JSON loops
     private List<Comment> replies = new ArrayList<>();
 }
