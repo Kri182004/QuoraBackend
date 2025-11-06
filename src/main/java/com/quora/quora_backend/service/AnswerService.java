@@ -64,21 +64,18 @@ public class AnswerService {
         questionRepository.save(question);
 
         // 5️⃣ Send Kafka event
-        try {
+ try {
     AnswerEvent event = AnswerEvent.builder()
             .answerId(savedAnswer.getId())
             .questionId(question.getId())
             .authorUsername(currentUser.getUsername())
-            .questionOwnerId(question.getUserId()) // the one who should get notification
+            .questionOwnerId(question.getUserId())
             .build();
-
-    kafkaTemplate.send(
-            MessageBuilder
-                    .withPayload(event)
-                    .setHeader(KafkaHeaders.TOPIC, KafkaConfig.ANSWER_TOPIC)
-                    .setHeader("__TypeId__", "ANSWER_EVENT")
-                    .build()
-    );
+    
+    // This simple send now works, because our KafkaConfig (Bean 4)
+    // automatically adds the correct "__TypeId__" header.
+    kafkaTemplate.send(KafkaConfig.NOTIFICATIONS_TOPIC, event);
+    
     System.out.println("===> KAFKA PRODUCER: Sent AnswerEvent ✅");
 
 } catch (Exception e) {

@@ -1,16 +1,23 @@
 package com.quora.quora_backend.config;
 
-import jakarta.annotation.PostConstruct;
+import com.quora.quora_backend.dto.AnswerEvent;
+import com.quora.quora_backend.dto.CommentEvent;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.clients.consumer.ConsumerConfig; // <-- NEW IMPORT
+import org.apache.kafka.clients.producer.ProducerConfig; // <-- NEW IMPORT
+import org.apache.kafka.common.serialization.StringDeserializer; // <-- NEW IMPORT
+import org.apache.kafka.common.serialization.StringSerializer; // <-- NEW IMPORT
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.*;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
-import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.support.converter.RecordMessageConverter;
+import org.springframework.kafka.support.converter.StringJsonMessageConverter;
+import org.springframework.kafka.support.mapping.DefaultJackson2JavaTypeMapper;
+import org.springframework.kafka.support.mapping.Jackson2JavaTypeMapper;
+import org.springframework.kafka.support.serializer.JsonDeserializer; // <-- NEW IMPORT
+import org.springframework.kafka.support.serializer.JsonSerializer; // <-- NEW IMPORT
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,88 +25,68 @@ import java.util.Map;
 @Configuration
 public class KafkaConfig {
 
-    // === 1️⃣ Topic constants (used across project) ===
-    public static final String ANSWER_TOPIC = "answers";
-    public static final String COMMENT_TOPIC = "comments";
     public static final String NOTIFICATIONS_TOPIC = "notifications";
 
-    // === 2️⃣ Producer Factory and KafkaTemplate ===
+    // --- FACTORIES (Define how to connect) ---
     @Bean
     public ProducerFactory<String, Object> producerFactory() {
         Map<String, Object> props = new HashMap<>();
-
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-
-        // Optional tuning
-        // props.put(ProducerConfig.ACKS_CONFIG, "all");
-        // props.put(ProducerConfig.RETRIES_CONFIG, 3);
-
         return new DefaultKafkaProducerFactory<>(props);
     }
 
     @Bean
-    public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> producerFactory) {
-        return new KafkaTemplate<>(producerFactory());
-    }
-
-    // === 3️⃣ Consumer Factory and Listener Container ===
-    @Bean
     public ConsumerFactory<String, Object> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
-
-        props.put(org.apache.kafka.clients.consumer.ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-        props.put(org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG, "quora-backend-group");
-        props.put(org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, org.apache.kafka.common.serialization.StringDeserializer.class);
-        props.put(org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-
-        // Allow deserialization of custom event classes
-        props.put("spring.json.trusted.packages", "*");
-
-        return new DefaultKafkaConsumerFactory<>(props,
-                new org.apache.kafka.common.serialization.StringDeserializer(),
-                new JsonDeserializer<>(Object.class));
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "quora-backend-group"); // Your group ID
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest"); // Read only new messages
+        props.put(JsonDeserializer.TRUSTED_PACKAGES, "com.quora.quora_backend.dto"); // Trust our DTOs
+        return new DefaultKafkaConsumerFactory<>(props);
     }
 
+    // --- BEAN 1: The Topic ---
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, Object> factory =
-                new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(consumerFactory());
-        factory.setConcurrency(3); // parallel threads per topic
+    public NewTopic notificationsTopic() {
+        return TopicBuilder.name(NOTIFICATIONS_TOPIC).partitions(1).replicas(1).build();
+    }
+
+    // --- BEAN 2: The JSON "Mail Sorter" ---
+    @Bean
+    public RecordMessageConverter multiTypeConverter() {
+        StringJsonMessageConverter converter = new StringJsonMessageConverter();
+        DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
+        typeMapper.setTypePrecedence(Jackson2JavaTypeMapper.TypePrecedence.TYPE_ID);
+        Map<String, Class<?>> mappings = new HashMap<>();
+        mappings.put("ANSWER_EVENT", AnswerEvent.class);
+        mappings.put("COMMENT_EVENT", CommentEvent.class);
+        typeMapper.setIdClassMapping(mappings);
+        converter.setTypeMapper(typeMapper);
+        return converter;
+    }
+
+    // --- BEAN 3: The Consumer "Mailroom" ---
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
+            ConsumerFactory<String, Object> consumerFactory,
+            RecordMessageConverter multiTypeConverter) {
+        ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory);
+        factory.setRecordMessageConverter(multiTypeConverter); // Use our sorter
         return factory;
     }
 
-    // === 4️⃣ Topic creation ===
+    // --- BEAN 4: The Producer "Mailman" ---
     @Bean
-    public NewTopic notificationsTopic() {
-        return TopicBuilder.name(NOTIFICATIONS_TOPIC)
-                .partitions(3)
-                .replicas(1)
-                .build();
-    }
-
-    @Bean
-    public NewTopic answersTopic() {
-        return TopicBuilder.name(ANSWER_TOPIC)
-                .partitions(3)
-                .replicas(1)
-                .build();
-    }
-
-    @Bean
-    public NewTopic commentsTopic() {
-        return TopicBuilder.name(COMMENT_TOPIC)
-                .partitions(3)
-                .replicas(1)
-                .build();
-    }
-
-    // === 5️⃣ Startup confirmation log ===
-    @PostConstruct
-    public void logKafkaStartup() {
-        System.out.println("✅ KafkaConfig initialized successfully with topics: "
-                + ANSWER_TOPIC + ", " + COMMENT_TOPIC + ", " + NOTIFICATIONS_TOPIC);
+    public KafkaTemplate<String, Object> kafkaTemplate(
+            ProducerFactory<String, Object> producerFactory,
+            RecordMessageConverter multiTypeConverter) {
+        KafkaTemplate<String, Object> kafkaTemplate = new KafkaTemplate<>(producerFactory);
+        kafkaTemplate.setMessageConverter(multiTypeConverter); // Use our sorter
+        return kafkaTemplate;
     }
 }
