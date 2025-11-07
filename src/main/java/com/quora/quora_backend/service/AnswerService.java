@@ -1,8 +1,10 @@
 package com.quora.quora_backend.service;
 
+import com.quora.quora_backend.dto.AnswerEvent;
 import com.quora.quora_backend.dto.AnswerRequestDto;
 import com.quora.quora_backend.dto.AnswerResponseDto;
 import com.quora.quora_backend.exception.UnauthorizedOperationException;
+import com.quora.quora_backend.kafka.AnswerProducer;
 import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.model.User;
@@ -26,7 +28,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AnswerService {
-
+    private final AnswerProducer answerProducer;
     private final AnswerRepository answerRepository;
     private final QuestionRepository questionRepository;
     private final UserRepository userRepository;
@@ -57,6 +59,16 @@ public class AnswerService {
         
         // 4. Save the new answer
         Answer savedAnswer = answerRepository.save(newAnswer);
+
+        //KAFKA EVENT
+        AnswerEvent event=new AnswerEvent(
+                savedAnswer.getQuestionId(),
+                savedAnswer.getId(),
+                savedAnswer.getUserId(),
+                "NEW answer added by"+ savedAnswer.getUsername()
+        );
+        answerProducer.sendMessage(event);
+        System.out.println("Saved Answer -> ID: " + savedAnswer.getId() + ", Question ID: " + savedAnswer.getQuestionId() + ", User ID: " + savedAnswer.getUserId());
 
         // 5. Link the new answer to the question's list of answers
         question.getAnswers().add(savedAnswer);
@@ -118,7 +130,6 @@ public class AnswerService {
 }
 
          
-
 
     public List<AnswerResponseDto> getAnswersForQuestion(String questionId) {
         

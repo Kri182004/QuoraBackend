@@ -1,8 +1,13 @@
 package com.quora.quora_backend.service;
 
+import com.quora.quora_backend.dto.CommentEvent;
 import com.quora.quora_backend.dto.CommentRequestDto;
 import com.quora.quora_backend.dto.CommentResponseDto;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.elasticsearch.ResourceNotFoundException;
+import org.springframework.kafka.core.KafkaTemplate;
+
 import com.quora.quora_backend.exception.UnauthorizedOperationException;
 import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Comment;
@@ -24,11 +29,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class CommentService {
-
     private final CommentRepository commentRepository;
     private final AnswerRepository answerRepository;
     private final UserRepository userRepository;
     private final QuestionRepository questionRepository;
+
+
+    @Autowired
+    private KafkaTemplate<String,Object>kafkaTemplate;
 
     
     @Transactional
@@ -43,7 +51,19 @@ public class CommentService {
                 .user(currentUser) // <-- Uses User object
                 .answer(answer)   // <-- Uses Answer object
                 .build();
+        
         Comment savedComment = commentRepository.save(newComment);
+       //kafka eevnt
+       CommentEvent commentEvent = new CommentEvent(
+            savedComment.getId(),
+            answer.getId(),
+            "ANSWER",
+            currentUser.getId(),
+            savedComment.getContent()
+    );
+       sendCommentEvent(savedComment);
+
+       
         return mapToCommentResponseDto(savedComment);
     }
 
@@ -61,6 +81,9 @@ public class CommentService {
                 .question(question) // <-- Uses Question object
                 .build();
         Comment savedComment = commentRepository.save(newComment);
+        //send kafka event      
+        sendCommentEvent(savedComment);
+
         return mapToCommentResponseDto(savedComment);
     }
 
@@ -84,6 +107,8 @@ public class CommentService {
         // This works because your model initializes replies = new ArrayList<>()
         parentComment.getReplies().add(savedReply);
         commentRepository.save(parentComment);
+
+        sendCommentEvent(savedReply);
 
         return mapToCommentResponseDto(savedReply);
     }
@@ -168,5 +193,19 @@ public class CommentService {
                 .parentCommentId(comment.getParentComment() != null ? comment.getParentComment().getId() : null)
                 .replies(replyDtos)
                 .build();
+    }
+    ///kafka event helper
+    private void sendCommentEvent(Comment comment) {
+        CommentEvent event = new CommentEvent(
+                comment.getId(),
+                comment.getAnswer() != null ? comment.getAnswer().getId() :
+                        comment.getQuestion() != null ? comment.getQuestion().getId() : null,
+                comment.getAnswer() != null ? "ANSWER" : "QUESTION",
+                comment.getUser().getId(),
+                comment.getContent()
+        );
+
+        kafkaTemplate.send("comment-topic", event);
+        System.out.println("Sent Kafka Event -> " + event);
     }
 }
