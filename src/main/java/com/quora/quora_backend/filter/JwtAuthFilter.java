@@ -26,35 +26,44 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         this.userDetailsService = userDetailsService;
     }
 
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        // We can add our debug checkpoints back in if needed
-        // System.out.println("--- CHECKPOINT 1: JWT AUTH FILTER IS RUNNING ---");
-        
-        String authHeader = request.getHeader("Authorization");
-        String token = null;
-        String username = null;
+   @Override
+protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+        throws ServletException, IOException {
 
-        // 1. Check if the request has an Authorization header with a Bearer token
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            token = authHeader.substring(7);
-            username = jwtService.extractUsername(token);
-        }
-
-        // 2. If we have a token and the user is not yet authenticated for this request
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-            
-            // 3. Validate the token against the user details from the database
-            if (jwtService.validateToken(token, userDetails)) {
-                // If valid, set the user as authenticated in the security context
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-            }
-        }
-        
-        // 4. Continue to the next filter in the chain
+    // ⛔ SKIP JWT CHECK FOR PUBLIC ENDPOINTS
+    String path = request.getServletPath();
+    if (path.equals("/api/users/register") ||
+        path.equals("/api/users/login") ||
+        path.startsWith("/api/auth")) {
         filterChain.doFilter(request, response);
+        return;
     }
+
+    String authHeader = request.getHeader("Authorization");
+    String token = null;
+    String username = null;
+
+    if (authHeader != null && authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+        username = jwtService.extractUsername(token);
+    }
+
+    if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+        if (jwtService.validateToken(token, userDetails)) {
+            UsernamePasswordAuthenticationToken authToken =
+                    new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+        }
+    }
+
+    filterChain.doFilter(request, response);
+}
+
 }
