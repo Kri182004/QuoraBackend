@@ -17,6 +17,7 @@ import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.model.Topic;
 import com.quora.quora_backend.model.User;
+import com.quora.quora_backend.model.VoteType;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -114,6 +115,22 @@ private final VoteRepository voteRepository;
                     .collect(Collectors.toList());
         }
 
+        // Calculate vote counts
+        int upvotes = (int) voteRepository.countByQuestionAndVoteType(question, VoteType.UPVOTE);
+        int downvotes = (int) voteRepository.countByQuestionAndVoteType(question, VoteType.DOWNVOTE);
+        
+        // Calculate total comment count (comments on question + comments on all answers)
+        int questionComments = (int) commentRepository.countByQuestionId(question.getId());
+        
+        // Count comments on all answers for this question
+        List<Answer> answers = answerRepository.findByQuestionId(question.getId());
+        int answerComments = 0;
+        for (Answer answer : answers) {
+            answerComments += commentRepository.findByAnswerId(answer.getId()).size();
+        }
+        
+        int commentCount = questionComments + answerComments;
+
         QuestionResponseDto dto = new QuestionResponseDto();
         dto.setId(question.getId());
         dto.setTitle(question.getTitle());
@@ -123,6 +140,9 @@ private final VoteRepository voteRepository;
         dto.setCreatedAt(question.getCreatedAt());
         dto.setUpdatedAt(question.getUpdatedAt());
         dto.setTopics(topicDtos);
+        dto.setUpvotes(upvotes);
+        dto.setDownvotes(downvotes);
+        dto.setCommentCount(commentCount);
         return dto;
     }
 
@@ -210,23 +230,28 @@ private final VoteRepository voteRepository;
     @Transactional(readOnly = true)
     public Page<QuestionResponseDto> getFeed(int page, int size, String username) {
         
-        // 1. Find the current user and their followed topics
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
-        
-        List<Topic> followedTopics = currentUser.getFollowedTopics();
-
         // 2. Create the Pageable object (sort by newest first)
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         Page<Question> questionPage;
 
-        // 3. Check if the user follows any topics
-        if (followedTopics != null && !followedTopics.isEmpty()) {
-            // If YES: Fetch a paged list of questions that are in their followed topics
-            questionPage = questionRepository.findByTopicsIn(followedTopics, pageable);
+        // 3. Check if user is authenticated and has followed topics
+        if (username != null) {
+            // 1. Find the current user and their followed topics
+            User currentUser = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+            
+            List<Topic> followedTopics = currentUser.getFollowedTopics();
+            
+            if (followedTopics != null && !followedTopics.isEmpty()) {
+                // If YES: Fetch a paged list of questions that are in their followed topics
+                questionPage = questionRepository.findByTopicsIn(followedTopics, pageable);
+            } else {
+                // If user has no followed topics: show all recent questions
+                questionPage = questionRepository.findAllByOrderByCreatedAtDesc(pageable);
+            }
         } else {
-            // If NO: Fall back to the old logic (show all recent questions)
+            // If anonymous user: show all recent questions
             questionPage = questionRepository.findAllByOrderByCreatedAtDesc(pageable);
         }
 

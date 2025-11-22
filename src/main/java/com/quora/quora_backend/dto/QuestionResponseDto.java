@@ -22,5 +22,8 @@ public class QuestionResponseDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<TopicDto> topics;
+    private int upvotes;
+    private int downvotes;
+    private int commentCount;
 
 }

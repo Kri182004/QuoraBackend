@@ -4,12 +4,14 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import com.quora.quora_backend.model.Answer;
 import com.quora.quora_backend.model.Question;
 import com.quora.quora_backend.model.User;
 import com.quora.quora_backend.model.Vote;
+import com.quora.quora_backend.model.VoteType;
 
 @Repository
 public interface VoteRepository extends MongoRepository<Vote,String> {//we have interface because we do not need to provide implementation for the methods,spring data mongodb will provide the implementation,
@@ -23,6 +25,12 @@ Optional<Vote> findByUserAndAnswer(User user, Answer answer);
 List<Vote> findByAnswer(Answer answer);//this method will help us to get all votes for a particular answer
 
 List<Vote> findByQuestion(Question question); //this method will help us to get all votes for a particular question
+
+// Count votes by type for questions
+long countByQuestionAndVoteType(Question question, VoteType voteType);
+
+// Count votes by type for answers  
+long countByAnswerAndVoteType(Answer answer, VoteType voteType);
 
 
 }

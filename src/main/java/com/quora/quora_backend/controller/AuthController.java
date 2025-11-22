@@ -1,7 +1,9 @@
 package com.quora.quora_backend.controller;
 
 import com.quora.quora_backend.dto.AuthRequest;
+import com.quora.quora_backend.dto.AuthResponse;
 import com.quora.quora_backend.dto.UserRegistrationDto;
+import com.quora.quora_backend.model.User;
 import com.quora.quora_backend.service.JwtService;
 import com.quora.quora_backend.service.UserService;
 import jakarta.validation.Valid;
@@ -32,27 +34,39 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> registerUser(@Valid @RequestBody UserRegistrationDto registrationDto) {
+    public ResponseEntity<AuthResponse> registerUser(@Valid @RequestBody UserRegistrationDto registrationDto) {
         try {
-            userService.registerUser(registrationDto);
-            return new ResponseEntity<>("User registered successfully!", HttpStatus.CREATED);
+            User user = userService.registerUser(registrationDto);
+            String token = jwtService.generateToken(user);
+            AuthResponse response = new AuthResponse(user.getId(), user.getUsername(), token, "User registered successfully!");
+            return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
-            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+            AuthResponse errorResponse = new AuthResponse();
+            errorResponse.setMessage(e.getMessage());
+            return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
         }
     }
-@PostMapping("/login")
-public String authenticateAndGetToken(@RequestBody AuthRequest authRequest) {
-    Authentication authentication = authenticationManager.authenticate(
-        new UsernamePasswordAuthenticationToken(authRequest.getUsername(), authRequest.getPassword())
-    );
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponse> authenticateAndGetToken(@RequestBody AuthRequest authRequest) {
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(authRequest.getUsername(), authRequest.getPassword())
+            );
 
-    if (authentication.isAuthenticated()) {
-        // After successful authentication, the 'principal' is the UserDetails object.
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        // Pass the full UserDetails object to generate the token.
-        return jwtService.generateToken(userDetails);
-    } else {
-        throw new UsernameNotFoundException("Invalid user request!");
+            if (authentication.isAuthenticated()) {
+                User user = (User) authentication.getPrincipal();
+                String token = jwtService.generateToken(user);
+                AuthResponse response = new AuthResponse(user.getId(), user.getUsername(), token, "Login successful!");
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            } else {
+                AuthResponse errorResponse = new AuthResponse();
+                errorResponse.setMessage("Invalid credentials!");
+                return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+            }
+        } catch (Exception e) {
+            AuthResponse errorResponse = new AuthResponse();
+            errorResponse.setMessage("Invalid user request!");
+            return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+        }
     }
-}
 }

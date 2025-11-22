@@ -10,4 +10,7 @@ public interface CommentRepository extends MongoRepository<Comment, String> {
     // Find only top-level comments (where parentComment is null)
     List<Comment> findByAnswerIdAndParentCommentIsNull(String answerId);
     List<Comment> findByQuestionIdAndParentCommentIsNull(String questionId);
+    
+    // Count comments for a question
+    long countByQuestionId(String questionId);
 }
